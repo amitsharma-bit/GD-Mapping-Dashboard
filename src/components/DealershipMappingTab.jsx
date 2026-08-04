@@ -60,67 +60,75 @@ export default function DealershipMappingTab() {
 
   return (
     <div>
-      <p style={{ color: '#555' }}>
+      <p className="helper-text">
         Research a domain's ultimate dealership ownership and check it against existing HubSpot Dealership Groups.
         Results are recommendations only — nothing is written to HubSpot.
       </p>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        {[
-          ['single', 'Single domain'],
-          ['paste', 'Paste list'],
-          ['file', 'Upload CSV/Excel'],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setMode(value)}
-            style={{ fontWeight: mode === value ? 'bold' : 'normal', padding: '6px 12px' }}
-          >
-            {label}
+      <div className="card">
+        <div className="mode-tabs">
+          {[
+            ['single', 'Single domain'],
+            ['paste', 'Paste list'],
+            ['file', 'Upload CSV/Excel'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setMode(value)}
+              className={`mode-button${mode === value ? ' active' : ''}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'single' && (
+          <input
+            type="text"
+            placeholder="fordabc.com"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="input"
+          />
+        )}
+
+        {mode === 'paste' && (
+          <textarea
+            placeholder={'fordabc.com\nchevydealer.com\n...'}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={8}
+            className="input"
+          />
+        )}
+
+        {mode === 'file' && (
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="file-input"
+          />
+        )}
+
+        <div className="action-row">
+          <button onClick={handleRun} disabled={running} className="btn btn-primary">
+            {running ? `Processing… (${progress.done}/${progress.total})` : 'Run'}
           </button>
-        ))}
-      </div>
-
-      {mode === 'single' && (
-        <input
-          type="text"
-          placeholder="fordabc.com"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          style={{ width: '100%', padding: 8, fontSize: 14 }}
-        />
-      )}
-
-      {mode === 'paste' && (
-        <textarea
-          placeholder={'fordabc.com\nchevydealer.com\n...'}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={8}
-          style={{ width: '100%', padding: 8, fontSize: 14 }}
-        />
-      )}
-
-      {mode === 'file' && (
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-      )}
-
-      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-        <button onClick={handleRun} disabled={running}>
-          {running ? `Processing… (${progress.done}/${progress.total})` : 'Run'}
-        </button>
-        <button onClick={() => downloadResultsCsv(resultList)} disabled={!resultList.length}>
-          Export CSV
-        </button>
-        <button
-          onClick={() => {
-            setResults({});
-            localStorage.removeItem(STORAGE_KEY);
-          }}
-          disabled={!resultList.length || running}
-        >
-          Clear results
-        </button>
+          <button onClick={() => downloadResultsCsv(resultList)} disabled={!resultList.length} className="btn btn-secondary">
+            Export CSV
+          </button>
+          <button
+            onClick={() => {
+              setResults({});
+              localStorage.removeItem(STORAGE_KEY);
+            }}
+            disabled={!resultList.length || running}
+            className="btn btn-secondary"
+          >
+            Clear results
+          </button>
+        </div>
       </div>
 
       <ResultsTable results={resultList} />
