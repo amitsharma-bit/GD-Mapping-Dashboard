@@ -63,7 +63,12 @@ export const OWNERSHIP_SCHEMA = {
 
 // ponytail: /v1/extract is flagged deprecated by Firecrawl in favor of /v2/scrape's
 // json-format option; migrate if v1 stops working. Also caps at 10 URLs per request.
-export async function extractOwnership(urls) {
+//
+// budgetMs bounds the poll loop so a single slow domain fails fast (as a REVIEW result,
+// see pipeline.js) with time to spare inside Vercel's 60s Hobby function ceiling, rather
+// than running until the platform kills the whole request. Raise this if deployed with a
+// higher function timeout (Pro, or Fluid Compute).
+export async function extractOwnership(urls, budgetMs = 45000) {
   return withRetry(async () => {
     const started = await post('/extract', {
       urls,
@@ -74,7 +79,8 @@ export async function extractOwnership(urls) {
     if (started.data) return started.data;
     const id = started.id;
     if (!id) return null;
-    for (let i = 0; i < 40; i++) {
+    const deadline = Date.now() + budgetMs;
+    while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 2000));
       const poll = await get(`/extract/${id}`);
       if (poll.status === 'completed') return poll.data;

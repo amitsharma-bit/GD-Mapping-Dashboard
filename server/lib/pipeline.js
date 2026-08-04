@@ -29,25 +29,29 @@ function mineGroupMention(text) {
 }
 
 async function corroborate(companyName, candidateGroupName) {
-  const found = [];
-  for (const { source, build } of CORROBORATION_QUERIES) {
-    const query = build(companyName);
-    try {
-      const results = await searchWeb(query, 3);
-      for (const r of results) {
-        const text = `${r.title || ''} ${r.description || ''}`;
-        const mentioned = candidateGroupName
-          ? normalizeCompanyName(text).includes(normalizeCompanyName(candidateGroupName))
-            ? candidateGroupName
-            : mineGroupMention(text)
-          : mineGroupMention(text);
-        if (mentioned) found.push({ source, url: r.url, mentionedGroup: mentioned });
+  // Run all queries concurrently - sequential took 5x as long and risked the
+  // Vercel function's time budget on its own.
+  const perQuery = await Promise.all(
+    CORROBORATION_QUERIES.map(async ({ source, build }) => {
+      try {
+        const results = await searchWeb(build(companyName), 3);
+        return results
+          .map((r) => {
+            const text = `${r.title || ''} ${r.description || ''}`;
+            const mentioned = candidateGroupName
+              ? normalizeCompanyName(text).includes(normalizeCompanyName(candidateGroupName))
+                ? candidateGroupName
+                : mineGroupMention(text)
+              : mineGroupMention(text);
+            return mentioned ? { source, url: r.url, mentionedGroup: mentioned } : null;
+          })
+          .filter(Boolean);
+      } catch {
+        return [];
       }
-    } catch (err) {
-      found.push({ source, url: null, mentionedGroup: null, error: err.message });
-    }
-  }
-  return found.filter((f) => f.mentionedGroup);
+    })
+  );
+  return perQuery.flat();
 }
 
 export async function processDomain(rawDomain) {
