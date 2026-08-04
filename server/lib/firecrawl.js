@@ -103,12 +103,13 @@ export async function searchWeb(query, limit = 5) {
 // budgetMs bounds the poll loop the same way extractOwnership does; on timeout this
 // returns whatever pages had already finished rather than throwing, so a slow site still
 // yields a partial (evidence-labeled) result instead of nothing.
-export async function crawlSite(url, { limit = 12, budgetMs = 40000 } = {}) {
+export async function crawlSite(url, { limit = 12, budgetMs = 40000, includePaths } = {}) {
   return withRetry(async () => {
     const started = await post('/crawl', {
       url,
       limit,
       maxDepth: 2,
+      ...(includePaths ? { includePaths } : {}),
       scrapeOptions: { formats: ['rawHtml', 'links'] },
     });
     const id = started.id;

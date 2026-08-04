@@ -67,15 +67,25 @@ export const SIGNATURES = [
   { name: 'Salesforce Chat', category: 'chat', patterns: [{ type: 'scriptSrc', test: /salesforceliveagent\.com|service\.force\.com/i }] },
 
   // --- CRM ---
-  { name: 'VinSolutions', category: 'crm', patterns: [{ type: 'scriptSrc', test: /vinsolutions\.com/i }] },
-  { name: 'DealerSocket', category: 'crm', patterns: [{ type: 'scriptSrc', test: /dealersocket\.com/i }] },
-  { name: 'Elead', category: 'crm', patterns: [{ type: 'scriptSrc', test: /elead-?crm\.com/i }] },
-  { name: 'Tekion', category: 'crm', patterns: [{ type: 'scriptSrc', test: /tekion\.com/i }] },
+  { name: 'VinSolutions', category: 'crm', patterns: [
+    { type: 'scriptSrc', test: /vinsolutions\.com/i },
+    { type: 'iframeSrc', test: /vinsolutions\.com/i },
+  ]},
+  { name: 'DealerSocket', category: 'crm', patterns: [
+    { type: 'scriptSrc', test: /dealersocket\.com/i },
+    { type: 'iframeSrc', test: /dealersocket\.com/i },
+  ]},
+  { name: 'Elead', category: 'crm', patterns: [{ type: 'scriptSrc', test: /elead-?crm\.com|elead1one\.com/i }] },
+  { name: 'Tekion', category: 'crm', patterns: [
+    { type: 'scriptSrc', test: /tekion\.com/i },
+    { type: 'iframeSrc', test: /tekion\.com/i },
+  ]},
   { name: 'HubSpot CRM', category: 'crm', patterns: [{ type: 'scriptSrc', test: /hs-analytics\.net|hs-scripts\.com|hsforms\.net/i }] },
   { name: 'Salesforce', category: 'crm', patterns: [{ type: 'scriptSrc', test: /force\.com|salesforce\.com/i }] },
   { name: 'Reynolds and Reynolds', category: 'crm', patterns: [{ type: 'scriptSrc', test: /reyrey\.com/i }] },
   { name: 'ProMax', category: 'crm', patterns: [{ type: 'scriptSrc', test: /promax(?:unlimited)?\.com/i }] },
   { name: 'Dominion Vision', category: 'crm', patterns: [{ type: 'scriptSrc', test: /dominionvision\.com|dominiondealer\.com/i }] },
+  { name: 'AutoAlert', category: 'crm', patterns: [{ type: 'scriptSrc', test: /autoalert\.com/i }] },
 
   // --- Inventory / Digital Retail ---
   { name: 'Roadster', category: 'digital_retail', patterns: [{ type: 'scriptSrc', test: /roadster\.com/i }] },
@@ -88,9 +98,25 @@ export const SIGNATURES = [
   { name: 'Reputation.com', category: 'reputation', patterns: [{ type: 'scriptSrc', test: /reputation\.com/i }] },
   { name: 'DealerRater', category: 'reputation', patterns: [{ type: 'scriptSrc', test: /dealerrater\.com/i }] },
 
-  // --- Scheduling ---
-  { name: 'Xtime', category: 'scheduling', patterns: [{ type: 'scriptSrc', test: /xtime\.com/i }] },
-  { name: 'Calendly', category: 'scheduling', patterns: [{ type: 'scriptSrc', test: /calendly\.com/i }] },
+  // --- Scheduling (service scheduler widgets are commonly iframe-embedded on the
+  // Service/Schedule Service page rather than loaded as a sitewide script, so these all
+  // check iframeSrc too) ---
+  { name: 'Xtime', category: 'scheduling', patterns: [
+    { type: 'scriptSrc', test: /xtime\.com/i },
+    { type: 'iframeSrc', test: /xtime\.com/i },
+  ]},
+  { name: 'Calendly', category: 'scheduling', patterns: [
+    { type: 'scriptSrc', test: /calendly\.com/i },
+    { type: 'iframeSrc', test: /calendly\.com/i },
+  ]},
+  { name: 'myKaarma', category: 'scheduling', patterns: [
+    { type: 'scriptSrc', test: /mykaarma\.com/i },
+    { type: 'iframeSrc', test: /mykaarma\.com/i },
+  ]},
+  { name: 'Dealer-FX', category: 'scheduling', patterns: [
+    { type: 'scriptSrc', test: /dealer-fx\.com/i },
+    { type: 'iframeSrc', test: /dealer-fx\.com/i },
+  ]},
 
   // --- Analytics ---
   { name: 'Google Analytics', category: 'analytics', patterns: [{ type: 'scriptSrc', test: /google-analytics\.com|gtag\/js/i }] },
