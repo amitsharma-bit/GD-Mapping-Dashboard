@@ -117,7 +117,13 @@ export default function TechResultsTable({ results }) {
 
   return (
     <div className="table-container fade-in">
-      <table className="data-table">
+      <table className="data-table tech-table">
+        <colgroup>
+          <col style={{ width: '22%' }} />
+          {COLUMN_CATEGORIES.map(([key]) => (
+            <col key={key} style={{ width: '13%' }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th>Company Name</th>

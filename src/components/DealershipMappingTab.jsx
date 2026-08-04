@@ -58,6 +58,27 @@ export default function DealershipMappingTab() {
 
   const resultList = Object.values(results).sort((a, b) => a.domain.localeCompare(b.domain));
 
+  const actionButtons = (
+    <>
+      <button onClick={handleRun} disabled={running} className="btn btn-primary">
+        {running ? `Processing… (${progress.done}/${progress.total})` : 'Run'}
+      </button>
+      <button onClick={() => downloadResultsCsv(resultList)} disabled={!resultList.length} className="btn btn-secondary">
+        Export CSV
+      </button>
+      <button
+        onClick={() => {
+          setResults({});
+          localStorage.removeItem(STORAGE_KEY);
+        }}
+        disabled={!resultList.length || running}
+        className="btn btn-secondary"
+      >
+        Clear results
+      </button>
+    </>
+  );
+
   return (
     <div>
       <p className="helper-text">
@@ -83,52 +104,42 @@ export default function DealershipMappingTab() {
         </div>
 
         {mode === 'single' && (
-          <input
-            type="text"
-            placeholder="fordabc.com"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="input"
-          />
+          <div className="search-row">
+            <input
+              type="text"
+              placeholder="fordabc.com"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              className="input"
+            />
+            {actionButtons}
+          </div>
         )}
 
         {mode === 'paste' && (
-          <textarea
-            placeholder={'fordabc.com\nchevydealer.com\n...'}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={8}
-            className="input"
-          />
+          <>
+            <textarea
+              placeholder={'fordabc.com\nchevydealer.com\n...'}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={8}
+              className="input"
+            />
+            <div className="action-row">{actionButtons}</div>
+          </>
         )}
 
         {mode === 'file' && (
-          <input
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="file-input"
-          />
+          <>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="file-input"
+            />
+            <div className="action-row">{actionButtons}</div>
+          </>
         )}
-
-        <div className="action-row">
-          <button onClick={handleRun} disabled={running} className="btn btn-primary">
-            {running ? `Processing… (${progress.done}/${progress.total})` : 'Run'}
-          </button>
-          <button onClick={() => downloadResultsCsv(resultList)} disabled={!resultList.length} className="btn btn-secondary">
-            Export CSV
-          </button>
-          <button
-            onClick={() => {
-              setResults({});
-              localStorage.removeItem(STORAGE_KEY);
-            }}
-            disabled={!resultList.length || running}
-            className="btn btn-secondary"
-          >
-            Clear results
-          </button>
-        </div>
       </div>
 
       <ResultsTable results={resultList} />
