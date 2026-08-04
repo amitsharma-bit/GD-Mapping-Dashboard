@@ -10,3 +10,16 @@ export async function processDomain(domain) {
   }
   return res.json();
 }
+
+export async function scanTechStack(domain) {
+  const res = await fetch('/api/tech-scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domain }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed (${res.status})`);
+  }
+  return res.json();
+}

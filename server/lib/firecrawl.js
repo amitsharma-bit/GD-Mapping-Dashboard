@@ -96,3 +96,31 @@ export async function searchWeb(query, limit = 5) {
     return result.data || [];
   });
 }
+
+// Crawls up to `limit` pages from `url`, returning rawHtml/links/metadata per page.
+// One /v1/crawl start + a handful of cheap status polls, vs. one /v1/scrape call per
+// page - important given this account's Firecrawl plan is limited to 5 requests/minute.
+// budgetMs bounds the poll loop the same way extractOwnership does; on timeout this
+// returns whatever pages had already finished rather than throwing, so a slow site still
+// yields a partial (evidence-labeled) result instead of nothing.
+export async function crawlSite(url, { limit = 12, budgetMs = 40000 } = {}) {
+  return withRetry(async () => {
+    const started = await post('/crawl', {
+      url,
+      limit,
+      maxDepth: 2,
+      scrapeOptions: { formats: ['rawHtml', 'links'] },
+    });
+    const id = started.id;
+    if (!id) return [];
+    const deadline = Date.now() + budgetMs;
+    let last = null;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3000));
+      last = await get(`/crawl/${id}`);
+      if (last.status === 'completed') return last.data || [];
+      if (last.status === 'failed') throw new Error('Firecrawl crawl job failed');
+    }
+    return last?.data || [];
+  });
+}

@@ -7,7 +7,7 @@
     "dev:client": "vite",
     "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
     "build": "vite build",
-    "test": "node test/decision.test.js",
+    "test": "node test/decision.test.js && node test/techMatch.test.js",
     "vercel-build": "vite build"
   },
   "dependencies": {

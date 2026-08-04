@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { processDomain } from './lib/pipeline.js';
+import { detectTechStack } from './lib/techDetect.js';
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -9,6 +10,13 @@ app.post('/api/process', async (req, res) => {
   const { domain } = req.body || {};
   if (!domain) return res.status(400).json({ error: 'domain is required' });
   const result = await processDomain(domain);
+  res.json(result);
+});
+
+app.post('/api/tech-scan', async (req, res) => {
+  const { domain } = req.body || {};
+  if (!domain) return res.status(400).json({ error: 'domain is required' });
+  const result = await detectTechStack(domain);
   res.json(result);
 });
 
