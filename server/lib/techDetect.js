@@ -71,6 +71,7 @@ export async function detectTechStack(rawDomain) {
       url: p.metadata?.url || p.metadata?.sourceURL || domain,
       rawHtml: p.rawHtml || '',
       metadata: p.metadata || {},
+      links: p.links || [],
     }));
     const merged = mergeSignals(normalizedPages);
 
@@ -79,7 +80,10 @@ export async function detectTechStack(rawDomain) {
     const companyName = geo.companyName || homepage['og:site_name'] || homepage.title || null;
 
     const detected = detectTechnologies(merged);
-    const categories = { chat: [], website_provider: [], crm: [], inventory: [], digital_retail: [], reputation: [], analytics: [], scheduling: [], other: [] };
+    const categories = {
+      chat: [], website_provider: [], crm: [], scheduling: [], ims: [], dms: [],
+      inventory: [], digital_retail: [], reputation: [], analytics: [], other: [],
+    };
     for (const tech of detected) {
       (categories[tech.category] || categories.other).push(tech.name);
     }

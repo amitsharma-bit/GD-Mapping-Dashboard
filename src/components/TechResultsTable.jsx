@@ -6,6 +6,8 @@ const COLUMN_CATEGORIES = [
   ['reputation', 'Reputation'],
   ['crm', 'CRM'],
   ['scheduling', 'Service Scheduler'],
+  ['ims', 'IMS'],
+  ['dms', 'DMS'],
   ['analytics', 'Analytics'],
 ];
 
@@ -16,12 +18,12 @@ const DETAIL_ONLY_CATEGORIES = [
 ];
 
 function ConfidenceBadge({ value }) {
-  const cls = value >= 100 ? 'badge-success' : value >= 95 ? 'badge-info' : 'badge-warning';
+  const cls = value >= 100 ? 'badge-success' : value >= 95 ? 'badge-info' : value >= 90 ? 'badge-warning' : 'badge-neutral';
   return <span className={`badge ${cls}`}>{value}</span>;
 }
 
 function TechChips({ names }) {
-  if (!names?.length) return <span className="muted">—</span>;
+  if (!names?.length) return <span className="muted">Not Detected</span>;
   return (
     <div className="chip-row">
       {names.map((name) => (
@@ -69,7 +71,7 @@ function DetailPanel({ result }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  {['Technology', 'Category', 'Confidence', 'Evidence', 'Source'].map((h) => (
+                  {['Technology', 'Category', 'Confidence', 'Detection Method', 'Evidence', 'Source'].map((h) => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
@@ -77,7 +79,7 @@ function DetailPanel({ result }) {
               <tbody>
                 {result.detected_technologies.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted">
+                    <td colSpan={6} className="muted">
                       No technologies detected from verifiable evidence.
                     </td>
                   </tr>
@@ -89,8 +91,9 @@ function DetailPanel({ result }) {
                     <td>
                       <ConfidenceBadge value={t.confidence} />
                     </td>
-                    <td style={{ maxWidth: 320 }}>{t.evidence}</td>
-                    <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <td>{t.method}</td>
+                    <td style={{ maxWidth: 280 }}>{t.evidence}</td>
+                    <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <a href={t.source} target="_blank" rel="noreferrer" className="link-external">
                         {t.source}
                       </a>
@@ -119,9 +122,9 @@ export default function TechResultsTable({ results }) {
     <div className="table-container fade-in">
       <table className="data-table tech-table">
         <colgroup>
-          <col style={{ width: '22%' }} />
+          <col style={{ width: '16%' }} />
           {COLUMN_CATEGORIES.map(([key]) => (
-            <col key={key} style={{ width: '13%' }} />
+            <col key={key} style={{ width: '10.5%' }} />
           ))}
         </colgroup>
         <thead>
