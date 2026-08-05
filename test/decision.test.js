@@ -78,6 +78,26 @@ import { decideOwnership } from '../server/lib/decision.js';
   assert.equal(result.hubspot_group_record_id, '42');
 }
 
+// CREATE_NEW_GROUP, not a false-positive MAP: two different companies that both just
+// happen to say "Automotive" in their name must NOT be treated as aliases of each other.
+// Regression test for a real bug found live: "Sonic Automotive" matched an unrelated
+// HubSpot group "Battlefield Automotive" at 100% confidence because "automotive" wasn't
+// stripped as a generic term the way "motors"/"group" already were.
+{
+  const result = decideOwnership({
+    officialSite: { dealer_group: 'Sonic Automotive' },
+    corroboratingSources: [
+      { source: 'pr_newswire', url: 'https://prnewswire.com/x', mentionedGroup: 'Sonic Automotive' },
+      { source: 'automotive_news', url: 'https://autonews.com/x', mentionedGroup: 'Sonic Automotive' },
+    ],
+    hubspotCandidates: [
+      { id: '99', properties: { name: 'Battlefield Automotive', dealership_group_name: 'Battlefield Automotive' } },
+    ],
+  });
+  assert.equal(result.recommendation, 'CREATE_NEW_GROUP');
+  assert.equal(result.hubspot_group_found, false);
+}
+
 // REVIEW (independent): site explicitly states independent ownership
 {
   const result = decideOwnership({

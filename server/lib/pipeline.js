@@ -3,12 +3,15 @@ import { findCompanyByDomain, findGroupCandidates } from './hubspot.js';
 import { decideOwnership } from './decision.js';
 import { normalizeDomain, normalizeCompanyName } from './normalize.js';
 
+// ponytail: capped at 3 queries (was 5) - this account's Firecrawl plan allows only
+// 5 requests/minute TOTAL, and every search here shares that budget with the single
+// extraction call above it. At ~13s of enforced spacing per request, each additional
+// query costs ~13s of wall-clock time against Vercel's 60s function ceiling. Raise this
+// back up if the Firecrawl plan or the function timeout increases.
 const CORROBORATION_QUERIES = [
   { source: 'google', build: (name) => `"${name}" "dealer group" OR "parent company"` },
-  { source: 'linkedin', build: (name) => `"${name}" site:linkedin.com/company` },
-  { source: 'pr_newswire', build: (name) => `"${name}" site:prnewswire.com` },
-  { source: 'business_wire', build: (name) => `"${name}" site:businesswire.com` },
   { source: 'automotive_news', build: (name) => `"${name}" site:autonews.com` },
+  { source: 'pr_newswire', build: (name) => `"${name}" site:prnewswire.com` },
 ];
 
 // ponytail: regex-based mention mining is a best-effort text heuristic, not real NLP.
@@ -29,8 +32,9 @@ function mineGroupMention(text) {
 }
 
 async function corroborate(companyName, candidateGroupName) {
-  // Run all queries concurrently - sequential took 5x as long and risked the
-  // Vercel function's time budget on its own.
+  // Dispatched concurrently, but firecrawl.js's request gate still spaces the actual HTTP
+  // calls ~13s apart underneath - Promise.all here is about code simplicity, not real
+  // parallelism against Firecrawl's rate limit.
   const perQuery = await Promise.all(
     CORROBORATION_QUERIES.map(async ({ source, build }) => {
       try {
@@ -62,13 +66,11 @@ export async function processDomain(rawDomain) {
 
   const sources = [];
   try {
-    // Target the pages the spec calls out explicitly (About/Locations/Leadership/Contact/Press/
-    // Privacy). Capped at 10 - Firecrawl's /v1/extract rejects more than 10 URLs per request.
-    const candidatePaths = ['', 'about', 'about-us', 'locations', 'leadership', 'our-team', 'contact', 'press', 'news', 'privacy-policy'];
-    const targetUrls = candidatePaths.map((p) => `https://${domain}/${p}`);
-
+    // Homepage only - see the comment on extractOwnership() for why (the old multi-page
+    // /v1/extract batch is dead; /v2/scrape is single-URL and the account's 5 req/min
+    // limit doesn't allow calling it once per candidate page).
     const [officialSiteData, hubspotCompany] = await Promise.all([
-      extractOwnership(targetUrls),
+      extractOwnership(`https://${domain}`),
       findCompanyByDomain(domain).catch(() => null),
     ]);
     sources.push(`https://${domain}`);

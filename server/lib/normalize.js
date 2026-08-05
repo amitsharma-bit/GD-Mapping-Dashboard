@@ -20,7 +20,12 @@ export function dedupeDomains(domains) {
   return out;
 }
 
-const LEGAL_SUFFIXES = /\b(inc|llc|ltd|corp|corporation|co|company|group|automotive group|auto group|autogroup|motors|motor group|dealerships?)\.?\b/gi;
+// "automotive"/"auto" standalone matter here as much as "motors"/"group" do - without
+// them, two unrelated groups that both just happen to say "Automotive" in their name
+// (e.g. "Sonic Automotive" vs "Battlefield Automotive") share a token and namesLikelyMatch
+// below wrongly treats that as an alias match. Verified live: this caused a real false
+// positive (100% confidence MAP to the wrong HubSpot group) before this fix.
+const LEGAL_SUFFIXES = /\b(inc|llc|ltd|corp|corporation|co|company|group|automotive group|auto group|autogroup|automotive|auto|motors|motor group|dealerships?)\.?\b/gi;
 
 export function normalizeCompanyName(name) {
   if (!name) return '';
