@@ -100,6 +100,13 @@ export const OWNERSHIP_SCHEMA = {
     owner: { type: 'string' },
     dealer_principal: { type: 'string' },
     ceo: { type: 'string' },
+    president: { type: 'string' },
+    general_manager: { type: 'string' },
+    corporate_office: { type: 'string' },
+    address: { type: 'string' },
+    city: { type: 'string' },
+    state: { type: 'string' },
+    phone: { type: 'string' },
     brands: { type: 'array', items: { type: 'string' } },
     locations: { type: 'array', items: { type: 'string' } },
     number_of_stores: { type: 'number' },
@@ -117,6 +124,20 @@ export const OWNERSHIP_SCHEMA = {
 // Only scrapes the homepage - the old approach checked up to 10 pages per domain, but at
 // 5 req/min account-wide that's no longer affordable. The homepage alone recovered the
 // same result in testing (title/meta/JSON-LD carry the ownership facts on these sites).
+// Despite the prompt saying "only fill fields explicitly stated," Firecrawl's extraction
+// LLM still sometimes fills an unstated field with a placeholder string ("Not stated",
+// "N/A", "Unknown") rather than omitting it - verified live. Left unfiltered, that string
+// is truthy and flows straight through every `officialSiteData?.field || null` check
+// downstream as if it were real data. Scrubbed here once, at the source, rather than
+// patched at every call site.
+const NOT_STATED_RE = /^(not stated|not specified|not mentioned|not available|n\/a|na|none|unknown)$/i;
+
+function scrubNotStated(value) {
+  if (Array.isArray(value)) return value.map(scrubNotStated).filter((v) => v !== null);
+  if (typeof value === 'string') return NOT_STATED_RE.test(value.trim()) ? null : value;
+  return value;
+}
+
 export async function extractOwnership(url) {
   return withRetry(async () => {
     const result = await post('/v2/scrape', {
@@ -126,11 +147,13 @@ export async function extractOwnership(url) {
           type: 'json',
           schema: OWNERSHIP_SCHEMA,
           prompt:
-            'Extract dealership ownership facts explicitly stated on this page: the corporate/parent entity, dealer group name, owner or dealer principal, CEO, brands carried, locations, store count, and acquisition history. Only fill fields that are explicitly stated on the page — do not infer or guess.',
+            'Extract dealership facts explicitly stated on this page: the corporate/parent entity, dealer group name, owner, dealer principal, CEO, president, general manager, corporate office location, street address, city, state, phone number, brands carried, locations, store count, and acquisition history. Only fill fields that are explicitly stated on the page — do not infer or guess.',
         },
       ],
     });
-    return result.data?.json || null;
+    const data = result.data?.json;
+    if (!data) return null;
+    return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, scrubNotStated(v)]));
   });
 }
 
