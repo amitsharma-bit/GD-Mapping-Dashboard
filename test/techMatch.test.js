@@ -8,9 +8,10 @@ function emptyMerged(overrides = {}) {
     inlineScripts: [],
     jsonLd: [],
     metadataEntries: [],
-    formActions: [],
+    formBlocks: [],
     stylesheetHrefs: [],
     linkHrefs: [],
+    pageTexts: [],
     pageUrls: [],
     ...overrides,
   };
@@ -94,12 +95,55 @@ function emptyMerged(overrides = {}) {
 // confidence 80: a lead-capture form posting straight to the CRM vendor's endpoint
 {
   const detected = detectTechnologies(
-    emptyMerged({ formActions: [{ href: 'https://api.vinsolutions.com/leads/submit', pageUrl: 'https://x.com/contact' }] })
+    emptyMerged({
+      formBlocks: [{ html: '<form action="https://api.vinsolutions.com/leads/submit">...</form>', action: 'https://api.vinsolutions.com/leads/submit', pageUrl: 'https://x.com/contact' }],
+    })
   );
   const vin = detected.find((d) => d.name === 'VinSolutions');
   assert.ok(vin);
   assert.equal(vin.confidence, 80);
-  assert.equal(vin.method, 'Form action URL');
+  assert.equal(vin.method, 'Form field');
+  assert.equal(vin.evidence, 'https://api.vinsolutions.com/leads/submit');
+}
+
+// confidence 80: the vendor's domain only appears in a HIDDEN INPUT's value, not the
+// form's action= itself - this is exactly the case the user asked for ("inspect hidden
+// inputs"), and only works because we scan the whole form block, not just action=.
+{
+  const detected = detectTechnologies(
+    emptyMerged({
+      formBlocks: [{
+        html: '<form action="/contact-submit"><input type="hidden" name="crm_endpoint" value="https://api.vinsolutions.com/leads"></form>',
+        action: '/contact-submit',
+        pageUrl: 'https://x.com/contact',
+      }],
+    })
+  );
+  const vin = detected.find((d) => d.name === 'VinSolutions');
+  assert.ok(vin, 'VinSolutions should be detected from a hidden input value even when action= is relative');
+  assert.equal(vin.confidence, 80);
+}
+
+// confidence 100: a footer "Powered by X" credit is treated as strong (official,
+// first-party) evidence, even with no matching script/domain anywhere else on the page
+{
+  const detected = detectTechnologies(
+    emptyMerged({ pageTexts: [{ text: 'Copyright 2026. Powered by Dealer Inspire. All rights reserved.', pageUrl: 'https://x.com/' }] })
+  );
+  const di = detected.find((d) => d.name === 'Dealer Inspire');
+  assert.ok(di, 'Dealer Inspire should be detected from a footer credit line');
+  assert.equal(di.confidence, 100);
+  assert.equal(di.method, 'Footer credit');
+}
+
+// A vendor's name appearing far from any "powered by"-style phrase must NOT count as a
+// credit - e.g. "Reynolds" as part of an unrelated sentence, not a DMS/website credit.
+{
+  const detected = detectTechnologies(
+    emptyMerged({ pageTexts: [{ text: 'Our top salesperson this month was John Reynolds, who sold 40 cars.', pageUrl: 'https://x.com/about' }] })
+  );
+  const reyrey = detected.find((d) => d.name === 'Reynolds & Reynolds');
+  assert.ok(!reyrey, 'an unrelated mention of "Reynolds" must not be treated as a DMS credit');
 }
 
 // confidence 80: a vendor's own stylesheet loading, with no other evidence

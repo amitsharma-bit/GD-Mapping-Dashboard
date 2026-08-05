@@ -8,25 +8,28 @@
 // generic product-descriptor names, no distinctive string to even guess from). Add these
 // once a real, verified domain is known.
 //
-// Each entry's `domain` regex is checked against EVERY evidence source (script/iframe src,
-// inline script content, meta tags, JSON-LD, form actions, stylesheet hrefs, link hrefs) -
-// see techMatch.js for how that's tiered into confidence. `metaExtra` overrides the meta-tag
-// check for vendors whose page-metadata fingerprint doesn't share the same pattern as their
-// script/domain (e.g. Dealer.com's "ddc:" meta-key prefix, distinct from its script paths).
+// Each entry's `domain` regex is checked against EVERY URL-bearing evidence source
+// (script/iframe src, inline script content, meta tags, JSON-LD, form fields, stylesheet
+// hrefs, link hrefs) - see techMatch.js for how that's tiered into confidence. `metaExtra`
+// overrides the meta-tag check for vendors whose page-metadata fingerprint doesn't share
+// the same pattern as their script/domain (e.g. Dealer.com's "ddc:" meta-key prefix,
+// distinct from its script paths). `namePattern` (plain vendor name, not a domain) enables
+// footer "Powered by X" / "Designed by X" credit-line detection against page text -
+// dealership sites very commonly disclose their website platform/DMS this way.
 export const SIGNATURES = [
   // --- Website Provider ---
   { name: 'Dealer.com', category: 'website_provider',
     domain: /\/ddc[-.]|ddc-js-api|ddc\.min\.js|ddc-core-js-polyfills|ddc-tracking-helpers|ddc-phone-swapping|ddc-data-layer|ddc-section-animations/i,
-    metaExtra: /\bddc:/i },
-  { name: 'Dealer Inspire', category: 'website_provider', domain: /dealerinspire\.com|di-cdn\.com/i },
-  { name: 'DealerOn', category: 'website_provider', domain: /dealeron\.com/i },
-  { name: 'DealerFire', category: 'website_provider', domain: /dealerfire\.com/i },
-  { name: 'Dealer eProcess', category: 'website_provider', domain: /dealereprocess\.(com|net)/i },
-  { name: 'Dealer Spike', category: 'website_provider', domain: /dealerspike\.com/i },
-  { name: 'CDK Global', category: 'website_provider', domain: /cdk(?:global)?\.com/i },
+    metaExtra: /\bddc:/i, namePattern: /Dealer\.com/i },
+  { name: 'Dealer Inspire', category: 'website_provider', domain: /dealerinspire\.com|di-cdn\.com/i, namePattern: /Dealer\s*Inspire/i },
+  { name: 'DealerOn', category: 'website_provider', domain: /dealeron\.com/i, namePattern: /Dealer\s*On/i },
+  { name: 'DealerFire', category: 'website_provider', domain: /dealerfire\.com/i, namePattern: /Dealer\s*Fire/i },
+  { name: 'Dealer eProcess', category: 'website_provider', domain: /dealereprocess\.(com|net)/i, namePattern: /Dealer\s*eProcess/i },
+  { name: 'Dealer Spike', category: 'website_provider', domain: /dealerspike\.com/i, namePattern: /Dealer\s*Spike/i },
+  { name: 'CDK Global', category: 'website_provider', domain: /cdk(?:global)?\.com/i, namePattern: /CDK(?:\s*Global)?\b/i },
   { name: 'DealerCarSearch', category: 'website_provider', domain: /dealercarsearch\.com/i },
-  { name: 'AutoRevo', category: 'website_provider', domain: /autorevo\.com/i },
-  { name: 'Sincro', category: 'website_provider', domain: /sincro(?:digital)?\.com/i },
+  { name: 'AutoRevo', category: 'website_provider', domain: /autorevo\.com/i, namePattern: /AutoRevo/i },
+  { name: 'Sincro', category: 'website_provider', domain: /sincro(?:digital)?\.com/i, namePattern: /Sincro/i },
   { name: 'Naked Lime', category: 'website_provider', domain: /nakedlime\.com/i },
 
   // --- Chat ---
@@ -84,8 +87,8 @@ export const SIGNATURES = [
   { name: 'Rapid Recon', category: 'ims', domain: /rapidrecon\.com/i },
 
   // --- DMS (Dealer Management System) ---
-  { name: 'CDK Global', category: 'dms', domain: /cdk(?:global)?\.com/i },
-  { name: 'Reynolds & Reynolds', category: 'dms', domain: /reyrey\.com/i },
+  { name: 'CDK Global', category: 'dms', domain: /cdk(?:global)?\.com/i, namePattern: /CDK(?:\s*Global)?\b/i },
+  { name: 'Reynolds & Reynolds', category: 'dms', domain: /reyrey\.com/i, namePattern: /Reynolds\s*(?:(?:and|&)\s*Reynolds)?\b/i },
   { name: 'Tekion DMS', category: 'dms', domain: /tekion\.com/i },
   { name: 'Dealertrack DMS', category: 'dms', domain: /dealertrack\.com/i },
   { name: 'Dominion DMS', category: 'dms', domain: /dominiondealer\.com|dominionvision\.com/i },

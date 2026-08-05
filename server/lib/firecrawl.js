@@ -141,21 +141,39 @@ export async function searchWeb(query, limit = 5) {
   });
 }
 
-// Crawls up to `limit` pages from `url`, returning rawHtml/links/metadata per page.
-// One /v1/crawl start + a handful of cheap status polls, vs. one /v1/scrape call per
+// Fetches a single page synchronously (no job/poll loop) - one gated request. Used to
+// guarantee the homepage is always inspected even when crawlSite() below is scoped to
+// specific sub-paths via includePaths, which (verified live) excludes the root path
+// entirely when it doesn't match any of the given patterns.
+export async function scrapePage(url) {
+  return withRetry(async () => {
+    const result = await post('/v2/scrape', { url, formats: ['rawHtml', 'links', 'markdown'] });
+    return result.data || null;
+  });
+}
+
+// Crawls up to `limit` pages from `url`, returning rawHtml/links/markdown/metadata per
+// page. One /v1/crawl start + a handful of cheap status polls, vs. one /v1/scrape call per
 // page - important given this account's Firecrawl plan is limited to 5 requests/minute.
 // budgetMs bounds the poll loop the same way extractOwnership does (see the deadline-check
 // comment there); on timeout this returns whatever pages had already finished rather than
 // throwing, so a slow site still yields a partial (evidence-labeled) result instead of
-// nothing. This pipeline makes no other Firecrawl calls, so it gets most of the 60s budget.
-export async function crawlSite(url, { limit = 12, budgetMs = 52000, includePaths } = {}) {
+// nothing.
+//
+// includePaths steers the crawler toward specific page types (verified live: given
+// keyword patterns like ".*service.*"/".*schedule.*", it correctly discovered real pages
+// like "/schedule-service/" that an unscoped crawl was missing entirely, wandering into
+// arbitrary linked content instead) - but it EXCLUDES the seed/root URL if the root path
+// doesn't itself match a pattern, so callers needing the homepage too must fetch it
+// separately via scrapePage() (see techDetect.js).
+export async function crawlSite(url, { limit = 12, budgetMs = 40000, includePaths } = {}) {
   return withRetry(async () => {
     const started = await post('/v1/crawl', {
       url,
       limit,
       maxDepth: 2,
       ...(includePaths ? { includePaths } : {}),
-      scrapeOptions: { formats: ['rawHtml', 'links'] },
+      scrapeOptions: { formats: ['rawHtml', 'links', 'markdown'] },
     });
     const id = started.id;
     if (!id) return [];

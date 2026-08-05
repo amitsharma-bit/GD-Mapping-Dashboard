@@ -1,7 +1,20 @@
-import { crawlSite } from './firecrawl.js';
+import { crawlSite, scrapePage } from './firecrawl.js';
 import { mergeSignals } from './htmlSignals.js';
 import { detectTechnologies } from './techMatch.js';
 import { normalizeDomain } from './normalize.js';
+
+// Keyword roots covering every page the detection engine is meant to inspect (about,
+// contact, inventory, new, used, finance, trade, sell-your-car, service, service-center,
+// schedule-service, service-scheduler, parts, body-shop, privacy-policy, terms, login,
+// customer-login, owner-portal) - collapsed to distinct roots since e.g. "service" alone
+// as a substring pattern already covers service-center/schedule-service/service-scheduler,
+// and "login" covers customer-login. Passed to crawlSite's includePaths, which (verified
+// live against a real dealer site) successfully steers the crawler to real pages like
+// "/schedule-service/" that a plain unscoped crawl was missing entirely.
+const PAGE_DISCOVERY_PATTERNS = [
+  'about', 'contact', 'inventory', 'new', 'used', 'finance', 'trade', 'sell',
+  'service', 'parts', 'body', 'privacy', 'terms', 'login', 'portal',
+].map((keyword) => `.*${keyword}.*`);
 
 const US_STATES = new Set([
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
@@ -62,7 +75,20 @@ export async function detectTechStack(rawDomain) {
   }
 
   try {
-    const pages = await crawlSite(`https://${domain}`, { limit: 12 });
+    const homeUrl = `https://${domain}`;
+    // Homepage first and separately - crawlSite's includePaths scoping (needed for
+    // reaching /service, /schedule-service, /inventory etc.) excludes the root path
+    // itself when it doesn't match one of those keyword patterns, but the homepage
+    // carries most of the sitewide signals (analytics, chat widgets, website-provider
+    // markers) that already worked well, so it can't be dropped.
+    const [homepagePage, crawledPages] = await Promise.all([
+      scrapePage(homeUrl).catch(() => null),
+      crawlSite(homeUrl, { limit: 20, includePaths: PAGE_DISCOVERY_PATTERNS }),
+    ]);
+
+    const pages = homepagePage
+      ? [{ ...homepagePage, metadata: { ...homepagePage.metadata, url: homeUrl } }, ...crawledPages]
+      : crawledPages;
     if (!pages.length) {
       return { domain, error: true, reason: 'Site could not be crawled (no pages returned).' };
     }
@@ -72,12 +98,13 @@ export async function detectTechStack(rawDomain) {
       rawHtml: p.rawHtml || '',
       metadata: p.metadata || {},
       links: p.links || [],
+      markdown: p.markdown || '',
     }));
     const merged = mergeSignals(normalizedPages);
 
     const geo = determineGeo(merged.jsonLd, domain);
-    const homepage = normalizedPages[0]?.metadata || {};
-    const companyName = geo.companyName || homepage['og:site_name'] || homepage.title || null;
+    const homepageMeta = normalizedPages[0]?.metadata || {};
+    const companyName = geo.companyName || homepageMeta['og:site_name'] || homepageMeta.title || null;
 
     const detected = detectTechnologies(merged);
     const categories = {

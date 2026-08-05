@@ -6,7 +6,7 @@
 const SCRIPT_SRC_RE = /<script[^>]*\ssrc=["']([^"']+)["'][^>]*>/gi;
 const IFRAME_SRC_RE = /<iframe[^>]*\ssrc=["']([^"']+)["'][^>]*>/gi;
 const SCRIPT_BLOCK_RE = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
-const FORM_TAG_RE = /<form\b[^>]*>/gi;
+const FORM_BLOCK_RE = /<form\b[^>]*>[\s\S]*?<\/form>/gi;
 const LINK_TAG_RE = /<link\b[^>]*>/gi;
 
 export function extractPageSignals(rawHtml) {
@@ -30,13 +30,15 @@ export function extractPageSignals(rawHtml) {
     }
   }
 
-  // Lead-capture / scheduler forms often POST straight to the vendor's own endpoint even
-  // when there's no visible script/iframe for it - a real, previously untapped evidence
-  // source for CRM and Service Scheduler detection specifically.
-  const formActions = [];
-  for (const tag of html.matchAll(FORM_TAG_RE)) {
-    const match = tag[0].match(/\baction=["']([^"']+)["']/i);
-    if (match) formActions.push(match[1]);
+  // Lead-capture / scheduler forms often POST straight to the vendor's own endpoint, or
+  // carry a hidden input naming the vendor (e.g. a CRM's lead-routing field), even when
+  // there's no visible script/iframe for it - a real, previously untapped evidence source
+  // for CRM and Service Scheduler detection specifically. Capturing the whole form block
+  // (not just its action= attribute) is what catches the hidden-input case.
+  const formBlocks = [];
+  for (const [block] of html.matchAll(FORM_BLOCK_RE)) {
+    const actionMatch = block.match(/\baction=["']([^"']+)["']/i);
+    formBlocks.push({ html: block, action: actionMatch ? actionMatch[1] : null });
   }
 
   // A vendor's companion CSS loading from their own CDN, independent of how the JS loads.
@@ -47,7 +49,7 @@ export function extractPageSignals(rawHtml) {
     if (match) stylesheetHrefs.push(match[1]);
   }
 
-  return { scriptSrcs, iframeSrcs, inlineScripts, jsonLd, formActions, stylesheetHrefs };
+  return { scriptSrcs, iframeSrcs, inlineScripts, jsonLd, formBlocks, stylesheetHrefs };
 }
 
 export function mergeSignals(pages) {
@@ -57,9 +59,10 @@ export function mergeSignals(pages) {
     inlineScripts: [],
     jsonLd: [],
     metadataEntries: [],
-    formActions: [],
+    formBlocks: [],
     stylesheetHrefs: [],
     linkHrefs: [],
+    pageTexts: [],
     pageUrls: [],
   };
   for (const page of pages) {
@@ -69,12 +72,16 @@ export function mergeSignals(pages) {
     merged.inlineScripts.push(...signals.inlineScripts.map((content) => ({ content, pageUrl: page.url })));
     merged.jsonLd.push(...signals.jsonLd.map((data) => ({ data, pageUrl: page.url })));
     merged.metadataEntries.push({ metadata: page.metadata || {}, pageUrl: page.url });
-    merged.formActions.push(...signals.formActions.map((href) => ({ href, pageUrl: page.url })));
+    merged.formBlocks.push(...signals.formBlocks.map((f) => ({ ...f, pageUrl: page.url })));
     merged.stylesheetHrefs.push(...signals.stylesheetHrefs.map((href) => ({ href, pageUrl: page.url })));
     // Firecrawl already parses anchor hrefs into page.links - no need to regex them
     // ourselves. A plain "Schedule Service" link out to a vendor's hosted booking page,
     // or a footer "Employee Login" link to a DMS/CRM portal, is real (if weaker) evidence.
     merged.linkHrefs.push(...(page.links || []).map((href) => ({ href, pageUrl: page.url })));
+    // Firecrawl's markdown format - a clean, tag-free reading of the page. Used
+    // specifically for footer "Powered by X" / "Designed by X" credit-line detection,
+    // which is plain text and wouldn't appear in any of the URL-bearing buckets above.
+    if (page.markdown) merged.pageTexts.push({ text: page.markdown, pageUrl: page.url });
     merged.pageUrls.push(page.url);
   }
   return merged;
