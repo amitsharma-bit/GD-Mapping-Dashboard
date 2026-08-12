@@ -44,3 +44,17 @@ export async function findGroupCandidates(candidateName) {
   });
   return results;
 }
+
+// Backs the manual "Select HubSpot Group" override control - lets a human search
+// real HubSpot Company records by name so an override can never point at a
+// fabricated record ID.
+export async function searchCompaniesByName(query) {
+  const q = (query || '').trim();
+  if (!q) return [];
+  const results = await searchCompanies({
+    filterGroups: [{ filters: [{ propertyName: 'name', operator: 'CONTAINS_TOKEN', value: q }] }],
+    properties: ['name', 'domain', 'dealership_group_name'],
+    limit: 10,
+  });
+  return results;
+}

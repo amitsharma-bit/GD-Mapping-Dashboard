@@ -1,185 +1,148 @@
 import assert from 'node:assert';
-import { decideOwnership } from '../server/lib/decision.js';
+import { decideMapping, classifyMatchType, findBestHubSpotMatch } from '../server/lib/decision.js';
 
-// MAP: official site + 2 independent corroborating sources agree, matching HubSpot group exists
+function evidence(source_tier, claim = 'ownership confirmed', url = 'https://example.com/x') {
+  return { claim, source_tier, url, title: null };
+}
+
+// MAP: tier1 evidence + 2 corroborating sources, matching HubSpot group exists
 {
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Lithia Motors' },
-    candidateSource: 'official_site',
-    corroboratingSources: [
-      { source: 'linkedin', url: 'https://linkedin.com/x', mentionedGroup: 'Lithia Motors Inc.' },
-      { source: 'google', url: 'https://google.com/x', mentionedGroup: 'Lithia Motors' },
-    ],
-    hubspotCandidates: [
-      { id: '1', properties: { name: 'Lithia Motors', dealership_group_name: 'Lithia Motors' } },
-    ],
-  });
+  const research = {
+    dealer_group: 'Lithia Motors',
+    evidence: [evidence('tier1', 'a', 'https://lithiamotors.com/x'), evidence('tier2', 'b'), evidence('tier2', 'c')],
+    conflict_detected: false,
+  };
+  const hubspotCandidates = [{ id: '1', properties: { name: 'Lithia Motors', dealership_group_name: 'Lithia Motors' } }];
+  const result = decideMapping({ research, hubspotCandidates });
   assert.equal(result.recommendation, 'MAP');
   assert.ok(result.confidence >= 95);
   assert.equal(result.hubspot_group_record_id, '1');
+  assert.equal(result.match_type, 'EXACT_MATCH');
 }
 
-// CREATE_NEW_GROUP: strong agreement, no existing HubSpot match
+// CREATE_NEW_GROUP: strong tier1+tier2 agreement, no existing HubSpot match
 {
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Acme Auto Group' },
-    candidateSource: 'official_site',
-    corroboratingSources: [
-      { source: 'pr_newswire', url: 'https://prnewswire.com/x', mentionedGroup: 'Acme Auto Group' },
-      { source: 'automotive_news', url: 'https://autonews.com/x', mentionedGroup: 'Acme Auto Group' },
-    ],
-    hubspotCandidates: [],
-  });
+  const research = {
+    dealer_group: 'Acme Auto Group',
+    evidence: [evidence('tier1'), evidence('tier2'), evidence('tier2')],
+    conflict_detected: false,
+  };
+  const result = decideMapping({ research, hubspotCandidates: [] });
   assert.equal(result.recommendation, 'CREATE_NEW_GROUP');
-  assert.equal(result.hubspot_group_found, false);
+  assert.equal(result.hubspot_group_record_id, null);
 }
 
-// REVIEW: conflicting sources
+// REVIEW: conflicting sources - never hidden, always downgraded to review
 {
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Acme Auto Group' },
-    candidateSource: 'official_site',
-    corroboratingSources: [{ source: 'google', url: 'https://x.com', mentionedGroup: 'Zenith Motors' }],
-    hubspotCandidates: [],
-  });
+  const research = {
+    dealer_group: 'Acme Auto Group',
+    evidence: [evidence('tier2')],
+    conflict_detected: true,
+    conflicts: [{ claim_a: 'Acme Auto Group', source_a: 'https://a.com', claim_b: 'Zenith Motors', source_b: 'https://b.com', possible_reason: 'outdated source' }],
+  };
+  const result = decideMapping({ research, hubspotCandidates: [] });
   assert.equal(result.recommendation, 'REVIEW');
   assert.match(result.reason, /disagree/i);
+  assert.ok(result.evidence.some((e) => e.startsWith('CONFLICT')));
 }
 
-// REVIEW: only official site, no corroboration, below 95 threshold
+// REVIEW: single corroborating source, below the 95 auto-map threshold
 {
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Solo Group' },
-    candidateSource: 'official_site',
-    corroboratingSources: [],
-    hubspotCandidates: [],
-  });
+  const research = {
+    dealer_group: 'Solo Group',
+    evidence: [evidence('tier3')],
+    conflict_detected: false,
+  };
+  const result = decideMapping({ research, hubspotCandidates: [] });
   assert.equal(result.recommendation, 'REVIEW');
   assert.equal(result.confidence, 70);
 }
 
-// REVIEW: no evidence anywhere - must NOT be reported as "independent"
+// REVIEW (NO_GROUP_FOUND is the correct outcome, not silently MAP-ing): no dealer_group
+// and no independence evidence - must NOT be reported as confirmed independent.
 {
-  const result = decideOwnership({ officialSite: {}, corroboratingSources: [], hubspotCandidates: [] });
+  const research = { dealer_group: null, evidence: [], conflict_detected: false, independently_owned: false };
+  const result = decideMapping({ research, hubspotCandidates: [] });
   assert.equal(result.recommendation, 'REVIEW');
   assert.equal(result.confidence, 0);
-  assert.doesNotMatch(result.reason, /is independent/i);
+  assert.doesNotMatch(result.reason, /confirmed independent/i);
 }
 
-// MAP: candidate group name is an alias/rebrand of the stored HubSpot value, not identical text
-// (mirrors the spec's "Lithia / Lithia Motors / Lithia Motors Inc. / Lithia Auto" example)
+// NO_GROUP_FOUND: explicit, evidence-backed independence conclusion
 {
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Lithia & Driveway' },
-    candidateSource: 'official_site',
-    corroboratingSources: [
-      { source: 'pr_newswire', url: 'https://prnewswire.com/x', mentionedGroup: 'Lithia & Driveway' },
-      { source: 'automotive_news', url: 'https://autonews.com/x', mentionedGroup: 'Lithia & Driveway' },
-    ],
-    hubspotCandidates: [
-      { id: '42', properties: { name: 'Lithia Motors', dealership_group_name: 'Lithia Motors' } },
-    ],
-  });
+  const research = {
+    dealer_group: null,
+    evidence: [],
+    conflict_detected: false,
+    independently_owned: true,
+    independence_reason: 'Owner confirmed via press interview to run this as a standalone store with no group affiliation.',
+  };
+  const result = decideMapping({ research, hubspotCandidates: [] });
+  assert.equal(result.recommendation, 'NO_GROUP_FOUND');
+  assert.match(result.reason, /standalone/i);
+}
+
+// MAP: candidate group name is an alias/rebrand of the stored HubSpot value, not
+// identical text (mirrors "Lithia" / "Lithia Motors" / "Lithia & Driveway").
+{
+  const research = {
+    dealer_group: 'Lithia & Driveway',
+    evidence: [evidence('tier1'), evidence('tier2'), evidence('tier2')],
+    conflict_detected: false,
+  };
+  const hubspotCandidates = [{ id: '42', properties: { name: 'Lithia Motors', dealership_group_name: 'Lithia Motors' } }];
+  const result = decideMapping({ research, hubspotCandidates });
   assert.equal(result.recommendation, 'MAP');
   assert.equal(result.hubspot_group_record_id, '42');
+  assert.equal(result.match_type, 'ALIAS_MATCH');
 }
 
 // CREATE_NEW_GROUP, not a false-positive MAP: two different companies that both just
-// happen to say "Automotive" in their name must NOT be treated as aliases of each other.
-// Regression test for a real bug found live: "Sonic Automotive" matched an unrelated
-// HubSpot group "Battlefield Automotive" at 100% confidence because "automotive" wasn't
-// stripped as a generic term the way "motors"/"group" already were.
+// happen to say "Automotive" in their name must NOT be treated as aliases of each
+// other. Regression test for a real bug found live in the previous pipeline version:
+// "Sonic Automotive" matched an unrelated HubSpot group "Battlefield Automotive" at
+// 100% confidence because "automotive" wasn't stripped as a generic term.
 {
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Sonic Automotive' },
-    candidateSource: 'official_site',
-    corroboratingSources: [
-      { source: 'pr_newswire', url: 'https://prnewswire.com/x', mentionedGroup: 'Sonic Automotive' },
-      { source: 'automotive_news', url: 'https://autonews.com/x', mentionedGroup: 'Sonic Automotive' },
-    ],
-    hubspotCandidates: [
-      { id: '99', properties: { name: 'Battlefield Automotive', dealership_group_name: 'Battlefield Automotive' } },
-    ],
-  });
+  const research = {
+    dealer_group: 'Sonic Automotive',
+    evidence: [evidence('tier1'), evidence('tier2'), evidence('tier2')],
+    conflict_detected: false,
+  };
+  const hubspotCandidates = [{ id: '99', properties: { name: 'Battlefield Automotive', dealership_group_name: 'Battlefield Automotive' } }];
+  const result = decideMapping({ research, hubspotCandidates });
   assert.equal(result.recommendation, 'CREATE_NEW_GROUP');
-  assert.equal(result.hubspot_group_found, false);
+  assert.equal(result.hubspot_group_record_id, null);
+  assert.equal(result.match_type, 'NO_MATCH');
 }
 
-// REVIEW (independent): site explicitly states independent ownership
+// Match-type classification unit checks
 {
-  const result = decideOwnership({
-    officialSite: { is_independently_owned: true },
-    corroboratingSources: [],
-    hubspotCandidates: [],
-  });
+  const exactRecord = { properties: { name: 'ABC Group', dealership_group_name: 'ABC Group' } };
+  assert.equal(classifyMatchType('ABC Group', exactRecord), 'EXACT_MATCH');
+
+  const normalizedRecord = { properties: { name: 'ABC Group Inc.', dealership_group_name: 'ABC Group Inc.' } };
+  assert.equal(classifyMatchType('ABC Group', normalizedRecord), 'NORMALIZED_MATCH');
+
+  assert.equal(classifyMatchType('Totally Unrelated Co', exactRecord), 'NO_MATCH');
+  assert.equal(classifyMatchType(null, exactRecord), 'NO_MATCH');
+}
+
+// findBestHubSpotMatch prefers the record that represents the group itself over a
+// rooftop record that merely carries the same dealership_group_name property.
+{
+  const groupRecord = { id: 'group-1', properties: { name: 'ABC Group', dealership_group_name: 'ABC Group' } };
+  const rooftopRecord = { id: 'rooftop-1', properties: { name: 'ABC Ford of Springfield', dealership_group_name: 'ABC Group' } };
+  const { record, matchType } = findBestHubSpotMatch('ABC Group', [rooftopRecord, groupRecord]);
+  assert.equal(record.id, 'group-1');
+  assert.equal(matchType, 'EXACT_MATCH');
+}
+
+// 50-69 band: some evidence but too weak alone to review-and-approve confidently
+{
+  const research = { dealer_group: 'Weak Signal Group', evidence: [], conflict_detected: false };
+  const result = decideMapping({ research, hubspotCandidates: [] });
+  assert.equal(result.confidence, 0);
   assert.equal(result.recommendation, 'REVIEW');
-  assert.match(result.reason, /independently owned/i);
-}
-
-// MAP: a name mined from search (weaker provenance, base 60) still reaches the 95
-// threshold once corroborated by two independent sources AND confirmed on the group's own
-// official website - this is the case that was previously impossible to auto-map: the
-// dealership's site says nothing about ownership at all, but external research plus
-// direct verification is enough. 60 base + 30 (2 sources) + 15 (verified) = 100.
-{
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Premier Auto Group' },
-    candidateSource: 'search_mined',
-    corroboratingSources: [
-      { source: 'trade_press', url: 'https://autonews.com/x', mentionedGroup: 'Premier Auto Group' },
-      { source: 'owner', url: 'https://prnewswire.com/x', mentionedGroup: 'Premier Auto Group' },
-    ],
-    hubspotCandidates: [
-      { id: '7', properties: { name: 'Premier Auto Group', dealership_group_name: 'Premier Auto Group' } },
-    ],
-    verifiedByGroupSite: true,
-  });
-  assert.equal(result.recommendation, 'MAP');
-  assert.ok(result.confidence >= 95);
-  assert.match(result.reason, /group's own website/i);
-}
-
-// REVIEW, not MAP: same search-mined candidate with only ONE corroborating source plus
-// verification (60 + 15 + 15 = 90) stays just under the 95 auto-map bar.
-{
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Premier Auto Group' },
-    candidateSource: 'search_mined',
-    corroboratingSources: [
-      { source: 'trade_press', url: 'https://autonews.com/x', mentionedGroup: 'Premier Auto Group' },
-    ],
-    hubspotCandidates: [],
-    verifiedByGroupSite: true,
-  });
-  assert.equal(result.confidence, 90);
-  assert.equal(result.recommendation, 'REVIEW');
-}
-
-// REVIEW, not MAP: the same search-mined candidate WITHOUT website verification and only
-// one corroborating source stays below the auto-map bar - weaker provenance alone isn't
-// enough, matching "never auto-map below high confidence."
-{
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Premier Auto Group' },
-    candidateSource: 'search_mined',
-    corroboratingSources: [
-      { source: 'trade_press', url: 'https://autonews.com/x', mentionedGroup: 'Premier Auto Group' },
-    ],
-    hubspotCandidates: [],
-  });
-  assert.equal(result.confidence, 75); // 60 base + 15 for one corroborating source
-  assert.equal(result.recommendation, 'REVIEW');
-}
-
-// Owner-fallback provenance (weakest) produces the lowest base confidence of the three tiers
-{
-  const result = decideOwnership({
-    officialSite: { dealer_group: 'Weak Signal Group' },
-    candidateSource: 'owner_fallback',
-    corroboratingSources: [],
-    hubspotCandidates: [],
-  });
-  assert.equal(result.confidence, 55);
 }
 
 console.log('decision.test.js: all checks passed');

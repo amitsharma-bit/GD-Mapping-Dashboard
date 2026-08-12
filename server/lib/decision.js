@@ -1,113 +1,188 @@
-import { namesLikelyMatch } from './normalize.js';
+import { namesLikelyMatch, normalizeCompanyName } from './normalize.js';
 
-// Base confidence depends on how the candidate group name was actually discovered - a
-// first-party claim on the dealership's own site is more reliable than a name mined from a
-// third-party search snippet, which is in turn more reliable than a name found only by
-// following the owner's name to a second, unrelated search (two inferential hops removed
-// from the dealership itself). Matches the "100 = official corporate website confirms /
-// 95 = multiple independent sources agree / 90 = strong public evidence" framing while
-// keeping the same MAP-eligibility bar this tool has always used.
-const BASE_CONFIDENCE = { official_site: 70, search_mined: 60, owner_fallback: 55 };
+// Evidence-based confidence engine (rewritten for the Claude + web_search research
+// pipeline). Confidence is never taken from the model's own self-assessment - it's
+// computed here, deterministically, from the tier/count of evidence the research
+// step actually collected (and cross-verified against real tool-call URLs in
+// research.js). This keeps the "never guess, never fabricate" rule enforceable in
+// code rather than trusting the LLM's opinion of its own certainty.
 
-// evidence = {
-//   officialSite: { dealer_group, parent_company, owner, dealer_principal, ceo, is_independently_owned, ... } | null,
-//   candidateSource: 'official_site' | 'search_mined' | 'owner_fallback' | null,
-//   corroboratingSources: [{ source, url, mentionedGroup }],
-//   hubspotCandidates: [{ id, properties: { name, dealership_group_name } }],
-//   verifiedByGroupSite: boolean,
+const TIER1 = 'tier1';
+const TIER2 = 'tier2';
+const TIER3 = 'tier3';
+
+// Classifies how a candidate dealership-group name relates to an existing HubSpot
+// group record. `context.viaAcquisition`/`context.viaOwnership` let the caller mark a
+// match that was found through the acquisition/ownership chain rather than name
+// similarity, per the spec's ACQUISITION_MATCH / OWNERSHIP_MATCH categories.
+export function classifyMatchType(candidateName, hubspotRecord, context = {}) {
+  if (!candidateName || !hubspotRecord) return 'NO_MATCH';
+  const storedGroupName = hubspotRecord.properties?.dealership_group_name || hubspotRecord.properties?.name || '';
+  if (!storedGroupName) return 'NO_MATCH';
+
+  const rawA = candidateName.trim().toLowerCase();
+  const rawB = storedGroupName.trim().toLowerCase();
+  if (rawA === rawB) return 'EXACT_MATCH';
+
+  const normA = normalizeCompanyName(candidateName);
+  const normB = normalizeCompanyName(storedGroupName);
+  if (normA && normA === normB) return 'NORMALIZED_MATCH';
+
+  if (!namesLikelyMatch(candidateName, storedGroupName)) return 'NO_MATCH';
+
+  if (context.viaAcquisition) return 'ACQUISITION_MATCH';
+  if (context.viaOwnership) return 'OWNERSHIP_MATCH';
+  return 'ALIAS_MATCH';
+}
+
+// Finds the best HubSpot candidate for a group name among search results, preferring
+// the record that represents the group itself (name === dealership_group_name) over
+// an individual rooftop record that merely carries that group name as a property.
+export function findBestHubSpotMatch(candidateName, hubspotCandidates = [], context = {}) {
+  if (!candidateName) return { record: null, matchType: 'NO_MATCH' };
+  const matches = hubspotCandidates
+    .map((record) => ({ record, matchType: classifyMatchType(candidateName, record, context) }))
+    .filter((m) => m.matchType !== 'NO_MATCH');
+  if (!matches.length) return { record: null, matchType: 'NO_MATCH' };
+
+  const rank = { EXACT_MATCH: 5, NORMALIZED_MATCH: 4, ACQUISITION_MATCH: 3, OWNERSHIP_MATCH: 3, ALIAS_MATCH: 2, POSSIBLE_MATCH: 1 };
+  matches.sort((a, b) => (rank[b.matchType] || 0) - (rank[a.matchType] || 0));
+
+  const groupRecord = matches.find((m) => m.record.properties?.name === m.record.properties?.dealership_group_name);
+  return groupRecord || matches[0];
+}
+
+// Confidence table, evidence-driven (spec section 16):
+//   100 - the group's own official site directly confirms this dealership is listed
+//    95 - at least one tier1 source plus 2+ independent corroborating sources
+//    90 - a tier1 or tier2 source, no independent corroboration yet
+//    80 - 2+ independent (tier2/tier3) sources agree, no tier1 evidence
+//    70 - exactly one corroborating source, otherwise probable but thin
+// 50-69 - some evidence exists but it's too weak/conflicting to act on
+//   <50 - never auto-map
+function computeOwnershipConfidence({ candidateGroup, evidence, verifiedOnGroupSite, conflictDetected }) {
+  if (!candidateGroup) return 0;
+  if (conflictDetected) return 35;
+
+  // Every evidence entry that survived research.js's URL cross-check is assumed to be
+  // about the reported candidate group (the model was instructed to only cite
+  // evidence supporting dealer_group) - so we simply tier-bucket what's left.
+  const supporting = evidence.filter((e) => e.source_tier);
+  const tier1Count = supporting.filter((e) => e.source_tier === TIER1).length;
+  const tier2Count = supporting.filter((e) => e.source_tier === TIER2).length;
+  const tier3Count = supporting.filter((e) => e.source_tier === TIER3).length;
+  const independentCount = supporting.length;
+
+  if (verifiedOnGroupSite) return 100;
+  if (tier1Count >= 1 && independentCount >= 2) return 95;
+  if (tier1Count >= 1 || tier2Count >= 1) return 90;
+  if (independentCount >= 2) return 80;
+  if (independentCount === 1) return 70;
+  return independentCount > 0 ? 55 : 0;
+}
+
+// evidence input shape = the sanitized `research.js` output:
+// {
+//   dealer_group, parent_company, related_dealerships, official_group_website,
+//   group_site_confirms_dealership, independently_owned, independence_reason,
+//   conflict_detected, conflicts, evidence: [{claim, source_tier, url, title}],
 // }
-export function decideOwnership(evidence) {
-  const site = evidence.officialSite || {};
-  const candidateRaw = site.dealer_group || site.parent_company || null;
+export function decideMapping({ research, hubspotCandidates = [] }) {
+  const candidateGroup = research?.dealer_group || null;
+  const evidenceLog = [];
 
-  if (!candidateRaw) {
-    if (site.is_independently_owned) {
+  if (!candidateGroup) {
+    if (research?.independently_owned) {
+      evidenceLog.push(research.independence_reason || 'Research found no evidence of group ownership.');
       return {
-        recommendation: 'REVIEW',
-        confidence: 60,
+        recommendation: 'NO_GROUP_FOUND',
+        confidence: research.evidence?.length ? 70 : 40,
         dealer_group: null,
-        hubspot_group_found: false,
+        hubspot_group_name: null,
         hubspot_group_record_id: null,
-        reason:
-          'Official site states the dealership is independently owned. No HubSpot Dealership Group applies; flagged for human confirmation rather than auto-closed.',
-        evidence: ['Official site: independently owned'],
+        match_type: 'NO_MATCH',
+        match_confidence: 0,
+        reason: research.independence_reason || 'No dealership group found after research; evidence suggests independent ownership.',
+        evidence: evidenceLog,
       };
     }
-    // Per the research workflow's own rule: silence about a group is not evidence OF
-    // independence, so this is reported as inconclusive (REVIEW, confidence 0), never as
-    // "independent" - the dealership may still belong to a HubSpot group we simply
-    // couldn't find public evidence for after exhausting the available sources.
     return {
       recommendation: 'REVIEW',
       confidence: 0,
       dealer_group: null,
-      hubspot_group_found: false,
+      hubspot_group_name: null,
       hubspot_group_record_id: null,
-      reason: 'No ownership, parent company, or dealer group evidence found in any source after exhausting available research. Not evidence of independence - flagged for manual review.',
-      evidence: [],
+      match_type: 'NO_MATCH',
+      match_confidence: 0,
+      reason: 'No ownership, parent company, or dealer group evidence found after research. This is not evidence of independence - flagged for manual review.',
+      evidence: evidenceLog,
     };
   }
 
-  const corroborating = evidence.corroboratingSources || [];
-  const agreeing = corroborating.filter((s) => s.mentionedGroup && namesLikelyMatch(s.mentionedGroup, candidateRaw));
-  const conflicting = corroborating.filter((s) => s.mentionedGroup && !namesLikelyMatch(s.mentionedGroup, candidateRaw));
+  const supportingEvidence = (research.evidence || []).filter((e) => e.source_tier);
+  evidenceLog.push(`Candidate dealership group identified as "${candidateGroup}"`);
+  supportingEvidence.forEach((e) => evidenceLog.push(`[${e.source_tier}] ${e.claim} (${e.url})`));
+  if (research.group_site_confirms_dealership) evidenceLog.push(`Confirmed on the group's own official website (${research.official_group_website})`);
 
-  const evidenceLog = [`Candidate group/parent identified as "${candidateRaw}"`, ...agreeing.map((s) => `${s.source} corroborates "${candidateRaw}" (${s.url})`)];
-  if (evidence.verifiedByGroupSite) evidenceLog.push(`Confirmed on the group's own official website`);
-
-  if (conflicting.length > 0) {
+  if (research.conflict_detected) {
+    (research.conflicts || []).forEach((c) =>
+      evidenceLog.push(`CONFLICT: "${c.claim_a}" (${c.source_a}) vs. "${c.claim_b}" (${c.source_b})${c.possible_reason ? ` - ${c.possible_reason}` : ''}`)
+    );
     return {
       recommendation: 'REVIEW',
-      confidence: Math.min(40, 30 + agreeing.length * 5),
-      dealer_group: candidateRaw,
-      hubspot_group_found: false,
+      confidence: computeOwnershipConfidence({ candidateGroup, evidence: supportingEvidence, verifiedOnGroupSite: false, conflictDetected: true }),
+      dealer_group: candidateGroup,
+      hubspot_group_name: null,
       hubspot_group_record_id: null,
-      reason: `Sources disagree on ownership: "${candidateRaw}" vs. ${conflicting
-        .map((s) => `${s.source} saying "${s.mentionedGroup}"`)
-        .join(', ')}.`,
-      evidence: [...evidenceLog, ...conflicting.map((s) => `CONFLICT: ${s.source} says "${s.mentionedGroup}" (${s.url})`)],
+      match_type: 'NO_MATCH',
+      match_confidence: 0,
+      reason: 'Sources disagree on current ownership. Prefer the newest reliable evidence and confirm manually.',
+      evidence: evidenceLog,
     };
   }
 
-  const uniqueAgreeingSources = new Set(agreeing.map((s) => s.source)).size;
-  const base = BASE_CONFIDENCE[evidence.candidateSource] ?? BASE_CONFIDENCE.search_mined;
-  // Each independent corroborating source adds 15; confirming against the group's own
-  // official website (see pipeline.js: verifyAgainstGroupSite) adds another 15 - the
-  // closest affordable approximation of "visit the parent group's website and confirm
-  // this dealership is listed there."
-  const confidence = Math.min(100, base + uniqueAgreeingSources * 15 + (evidence.verifiedByGroupSite ? 15 : 0));
+  const confidence = computeOwnershipConfidence({
+    candidateGroup,
+    evidence: supportingEvidence,
+    verifiedOnGroupSite: Boolean(research.group_site_confirms_dealership),
+    conflictDetected: false,
+  });
 
-  const hubspotCandidates = evidence.hubspotCandidates || [];
-  const matches = hubspotCandidates.filter((c) => namesLikelyMatch(c.properties?.dealership_group_name || '', candidateRaw));
-  // Prefer the record that represents the group itself (name === dealership_group_name) over a rooftop record.
-  const groupRecord = matches.find((c) => c.properties?.name === c.properties?.dealership_group_name) || matches[0];
+  const viaAcquisition = Boolean(research.acquisition?.current_group && namesLikelyMatch(research.acquisition.current_group, candidateGroup));
+  const viaOwnership = !viaAcquisition && Boolean(research.parent_company && !namesLikelyMatch(research.parent_company, candidateGroup));
+  const { record: hubspotRecord, matchType } = findBestHubSpotMatch(candidateGroup, hubspotCandidates, { viaAcquisition, viaOwnership });
+  const hubspotGroupName = hubspotRecord?.properties?.dealership_group_name || hubspotRecord?.properties?.name || null;
+  const matchConfidence = { EXACT_MATCH: 100, NORMALIZED_MATCH: 95, ACQUISITION_MATCH: 90, OWNERSHIP_MATCH: 85, ALIAS_MATCH: 80, POSSIBLE_MATCH: 55, NO_MATCH: 0 }[matchType];
 
   let recommendation;
   let reason;
-  const corroborationNote = agreeing.length ? ` and ${uniqueAgreeingSources} corroborating source(s)` : '';
-  const verificationNote = evidence.verifiedByGroupSite ? ', confirmed on the group\'s own website' : '';
+  const corroborationNote = supportingEvidence.length ? ` corroborated by ${supportingEvidence.length} source(s)` : '';
+  const verificationNote = research.group_site_confirms_dealership ? ", confirmed on the group's own website" : '';
+
   if (confidence >= 95) {
-    recommendation = groupRecord ? 'MAP' : 'CREATE_NEW_GROUP';
-    reason = groupRecord
-      ? `Ownership confirmed${corroborationNote}${verificationNote}; matches existing HubSpot group "${groupRecord.properties.dealership_group_name}".`
-      : `Ownership confirmed${corroborationNote}${verificationNote}; no matching HubSpot Dealership Group exists yet.`;
-  } else if (confidence >= 90) {
-    recommendation = 'REVIEW';
-    reason = 'Strong public evidence but below the 95 auto-map threshold; recommend human review before mapping.';
+    recommendation = hubspotRecord ? 'MAP' : 'CREATE_NEW_GROUP';
+    reason = hubspotRecord
+      ? `Ownership confirmed${corroborationNote}${verificationNote}; matches existing HubSpot group "${hubspotGroupName}" (${matchType}).`
+      : `Ownership confirmed${corroborationNote}${verificationNote}; no matching HubSpot Dealership Group record exists yet.`;
   } else if (confidence >= 80) {
     recommendation = 'REVIEW';
-    reason = 'Likely ownership identified but not yet strongly corroborated; recommend review.';
+    reason = `Likely current ownership identified${corroborationNote}, but below the auto-map confidence threshold - recommend human review before mapping${hubspotRecord ? ` (possible HubSpot match: "${hubspotGroupName}", ${matchType})` : ''}.`;
+  } else if (confidence >= 50) {
+    recommendation = 'REVIEW';
+    reason = 'Some evidence of ownership was found but it is thin or from lower-reliability sources - recommend review, or run Deep Research for more corroboration.';
   } else {
     recommendation = 'REVIEW';
-    reason = 'Evidence is below the confidence threshold for automatic mapping.';
+    reason = 'Evidence is insufficient for automatic mapping.';
   }
 
   return {
     recommendation,
     confidence,
-    dealer_group: candidateRaw,
-    hubspot_group_found: Boolean(groupRecord),
-    hubspot_group_record_id: groupRecord?.id || null,
+    dealer_group: candidateGroup,
+    hubspot_group_name: hubspotGroupName,
+    hubspot_group_record_id: hubspotRecord?.id || null,
+    match_type: matchType,
+    match_confidence: matchConfidence,
     reason,
     evidence: evidenceLog,
   };
