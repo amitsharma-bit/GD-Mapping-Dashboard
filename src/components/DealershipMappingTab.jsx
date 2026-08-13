@@ -332,121 +332,127 @@ export default function DealershipMappingTab() {
         recommendation for human review.
       </p>
 
-      <div className="card">
-        <div className="mode-tabs">
-          {[
-            ['single', 'Single company'],
-            ['paste', 'Paste list'],
-            ['file', 'Upload CSV/Excel'],
-          ].map(([value, label]) => (
-            <button key={value} onClick={() => setMode(value)} className={`mode-button${mode === value ? ' active' : ''}`}>
-              {label}
-            </button>
-          ))}
+      <div className="card card-fullwidth compact-controls">
+        <div className="form-section">
+          <div className="mode-tabs">
+            {[
+              ['single', 'Single company'],
+              ['paste', 'Paste list'],
+              ['file', 'Upload CSV/Excel'],
+            ].map(([value, label]) => (
+              <button key={value} onClick={() => setMode(value)} className={`mode-button${mode === value ? ' active' : ''}`}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="mode-tabs" style={{ marginBottom: 12 }}>
-          <span className="detail-fact-label" style={{ alignSelf: 'center', marginRight: 4 }}>
-            Research mode:
-          </span>
-          {[
-            ['quick', 'Quick'],
-            ['standard', 'Standard'],
-            ['deep', 'Deep Research'],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setResearchMode(value)}
-              className={`mode-button${researchMode === value ? ' active' : ''}`}
-              title={value === 'deep' ? 'Exhaustive investigation - slower, may occasionally exceed the serverless timeout.' : ''}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="form-section">
+          <div className="mode-tabs">
+            <span className="detail-fact-label" style={{ alignSelf: 'center', marginRight: 4 }}>
+              Research mode:
+            </span>
+            {[
+              ['quick', 'Quick'],
+              ['standard', 'Standard'],
+              ['deep', 'Deep Research'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setResearchMode(value)}
+                className={`mode-button${researchMode === value ? ' active' : ''}`}
+                title={value === 'deep' ? 'Exhaustive investigation - slower, may occasionally exceed the serverless timeout.' : ''}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {mode === 'single' && (
-          <>
-            <div className="single-form-grid">
-              <input
-                type="text"
-                placeholder="Company Name (optional)"
-                value={singleForm.company_name}
-                onChange={(e) => setSingleForm((f) => ({ ...f, company_name: e.target.value }))}
-                className="input"
-              />
-              <input
-                type="text"
-                placeholder="Company Domain (e.g. coconutpointford.com)"
-                value={singleForm.domain}
-                onChange={(e) => setSingleForm((f) => ({ ...f, domain: e.target.value }))}
-                className="input"
-              />
-              <input
-                type="text"
-                placeholder="City (optional)"
-                value={singleForm.city}
-                onChange={(e) => setSingleForm((f) => ({ ...f, city: e.target.value }))}
-                className="input"
-              />
-              <input
-                type="text"
-                placeholder="State (optional)"
-                value={singleForm.state}
-                onChange={(e) => setSingleForm((f) => ({ ...f, state: e.target.value }))}
-                className="input"
-              />
-            </div>
-            <div className="action-row">
-              <button onClick={handleRunSingle} disabled={running} className="btn btn-primary">
-                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research Company'}
-              </button>
-              {running && (
-                <button onClick={handleStop} className="btn btn-secondary">
-                  Stop
+        <div className="form-section">
+          {mode === 'single' && (
+            <>
+              <div className="single-form-grid">
+                <input
+                  type="text"
+                  placeholder="Company Name (optional)"
+                  value={singleForm.company_name}
+                  onChange={(e) => setSingleForm((f) => ({ ...f, company_name: e.target.value }))}
+                  className="input"
+                />
+                <input
+                  type="text"
+                  placeholder="Company Domain (e.g. coconutpointford.com)"
+                  value={singleForm.domain}
+                  onChange={(e) => setSingleForm((f) => ({ ...f, domain: e.target.value }))}
+                  className="input"
+                />
+                <input
+                  type="text"
+                  placeholder="City (optional)"
+                  value={singleForm.city}
+                  onChange={(e) => setSingleForm((f) => ({ ...f, city: e.target.value }))}
+                  className="input"
+                />
+                <input
+                  type="text"
+                  placeholder="State (optional)"
+                  value={singleForm.state}
+                  onChange={(e) => setSingleForm((f) => ({ ...f, state: e.target.value }))}
+                  className="input"
+                />
+              </div>
+              <div className="action-row">
+                <button onClick={handleRunSingle} disabled={running} className="btn btn-primary">
+                  {running ? `Researching… (${progress.done}/${progress.total})` : 'Research Company'}
                 </button>
-              )}
-            </div>
-          </>
-        )}
+                {running && (
+                  <button onClick={handleStop} className="btn btn-secondary">
+                    Stop
+                  </button>
+                )}
+              </div>
+            </>
+          )}
 
-        {mode === 'paste' && (
-          <>
-            <textarea
-              placeholder={'coconutpointford.com\nOR paste CSV/TSV rows with headers: Company Name, Company Domain, City, State'}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={8}
-              className="input"
-            />
-            <div className="action-row">
-              <button onClick={handleRunBatch} disabled={running} className="btn btn-primary">
-                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research List'}
-              </button>
-              {running && (
-                <button onClick={handleStop} className="btn btn-secondary">
-                  Stop
+          {mode === 'paste' && (
+            <>
+              <textarea
+                placeholder={'coconutpointford.com\nOR paste CSV/TSV rows with headers: Company Name, Company Domain, City, State'}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={6}
+                className="input"
+              />
+              <div className="action-row">
+                <button onClick={handleRunBatch} disabled={running} className="btn btn-primary">
+                  {running ? `Researching… (${progress.done}/${progress.total})` : 'Research List'}
                 </button>
-              )}
-            </div>
-          </>
-        )}
+                {running && (
+                  <button onClick={handleStop} className="btn btn-secondary">
+                    Stop
+                  </button>
+                )}
+              </div>
+            </>
+          )}
 
-        {mode === 'file' && (
-          <>
-            <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] || null)} className="file-input" />
-            <div className="action-row">
-              <button onClick={handleRunBatch} disabled={running || !file} className="btn btn-primary">
-                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research File'}
-              </button>
-              {running && (
-                <button onClick={handleStop} className="btn btn-secondary">
-                  Stop
+          {mode === 'file' && (
+            <>
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] || null)} className="file-input" />
+              <div className="action-row">
+                <button onClick={handleRunBatch} disabled={running || !file} className="btn btn-primary">
+                  {running ? `Researching… (${progress.done}/${progress.total})` : 'Research File'}
                 </button>
-              )}
-            </div>
-          </>
-        )}
+                {running && (
+                  <button onClick={handleStop} className="btn btn-secondary">
+                    Stop
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {stats.total > 0 && (
