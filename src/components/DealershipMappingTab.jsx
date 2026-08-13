@@ -334,85 +334,81 @@ export default function DealershipMappingTab() {
 
       <div className="card card-fullwidth compact-controls">
         <div className="form-section">
-          <div className="mode-tabs">
-            {[
-              ['single', 'Single company'],
-              ['paste', 'Paste list'],
-              ['file', 'Upload CSV/Excel'],
-            ].map(([value, label]) => (
-              <button key={value} onClick={() => setMode(value)} className={`mode-button${mode === value ? ' active' : ''}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+          <div className="control-row">
+            <div className="mode-tabs">
+              {[
+                ['single', 'Single company'],
+                ['paste', 'Paste list'],
+                ['file', 'Upload CSV/Excel'],
+              ].map(([value, label]) => (
+                <button key={value} onClick={() => setMode(value)} className={`mode-button${mode === value ? ' active' : ''}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        <div className="form-section">
-          <div className="mode-tabs">
-            <span className="detail-fact-label" style={{ alignSelf: 'center', marginRight: 4 }}>
-              Research mode:
-            </span>
-            {[
-              ['quick', 'Quick'],
-              ['standard', 'Standard'],
-              ['deep', 'Deep Research'],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setResearchMode(value)}
-                className={`mode-button${researchMode === value ? ' active' : ''}`}
-                title={value === 'deep' ? 'Exhaustive investigation - slower, may occasionally exceed the serverless timeout.' : ''}
-              >
-                {label}
-              </button>
-            ))}
+            <div className="mode-tabs">
+              <span className="detail-fact-label" style={{ alignSelf: 'center', marginRight: 4 }}>
+                Research mode:
+              </span>
+              {[
+                ['quick', 'Quick'],
+                ['standard', 'Standard'],
+                ['deep', 'Deep Research'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setResearchMode(value)}
+                  className={`mode-button${researchMode === value ? ' active' : ''}`}
+                  title={value === 'deep' ? 'Exhaustive investigation - slower, may occasionally exceed the serverless timeout.' : ''}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="form-section">
           {mode === 'single' && (
-            <>
-              <div className="single-form-grid">
-                <input
-                  type="text"
-                  placeholder="Company Name (optional)"
-                  value={singleForm.company_name}
-                  onChange={(e) => setSingleForm((f) => ({ ...f, company_name: e.target.value }))}
-                  className="input"
-                />
-                <input
-                  type="text"
-                  placeholder="Company Domain (e.g. coconutpointford.com)"
-                  value={singleForm.domain}
-                  onChange={(e) => setSingleForm((f) => ({ ...f, domain: e.target.value }))}
-                  className="input"
-                />
-                <input
-                  type="text"
-                  placeholder="City (optional)"
-                  value={singleForm.city}
-                  onChange={(e) => setSingleForm((f) => ({ ...f, city: e.target.value }))}
-                  className="input"
-                />
-                <input
-                  type="text"
-                  placeholder="State (optional)"
-                  value={singleForm.state}
-                  onChange={(e) => setSingleForm((f) => ({ ...f, state: e.target.value }))}
-                  className="input"
-                />
-              </div>
-              <div className="action-row">
-                <button onClick={handleRunSingle} disabled={running} className="btn btn-primary">
-                  {running ? `Researching… (${progress.done}/${progress.total})` : 'Research Company'}
+            <div className="compact-form-row">
+              <input
+                type="text"
+                placeholder="Company Name (optional)"
+                value={singleForm.company_name}
+                onChange={(e) => setSingleForm((f) => ({ ...f, company_name: e.target.value }))}
+                className="input"
+              />
+              <input
+                type="text"
+                placeholder="Company Domain (e.g. coconutpointford.com)"
+                value={singleForm.domain}
+                onChange={(e) => setSingleForm((f) => ({ ...f, domain: e.target.value }))}
+                className="input"
+              />
+              <input
+                type="text"
+                placeholder="City (optional)"
+                value={singleForm.city}
+                onChange={(e) => setSingleForm((f) => ({ ...f, city: e.target.value }))}
+                className="input"
+              />
+              <input
+                type="text"
+                placeholder="State (optional)"
+                value={singleForm.state}
+                onChange={(e) => setSingleForm((f) => ({ ...f, state: e.target.value }))}
+                className="input"
+              />
+              <button onClick={handleRunSingle} disabled={running} className="btn btn-primary">
+                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research Company'}
+              </button>
+              {running && (
+                <button onClick={handleStop} className="btn btn-secondary">
+                  Stop
                 </button>
-                {running && (
-                  <button onClick={handleStop} className="btn btn-secondary">
-                    Stop
-                  </button>
-                )}
-              </div>
-            </>
+              )}
+            </div>
           )}
 
           {mode === 'paste' && (

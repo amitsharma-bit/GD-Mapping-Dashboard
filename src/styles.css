@@ -28,14 +28,14 @@ body {
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-  padding: 24px clamp(24px, 2vw, 32px) 48px;
+  padding: 18px clamp(24px, 2vw, 32px) 40px;
 }
 
 .dashboard-title {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin: 0 0 12px;
+  margin: 0 0 6px;
   color: var(--text-primary);
   text-align: left;
 }
@@ -43,19 +43,19 @@ body {
 /* Tabs */
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 16px;
-  margin-left: -14px;
+  margin-bottom: 10px;
+  margin-left: -12px;
 }
 
 .tab-button {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-secondary);
   background: none;
   border: none;
-  padding: 10px 14px;
+  padding: 7px 12px;
   cursor: pointer;
   position: relative;
   transition: color 0.2s ease;
@@ -73,8 +73,8 @@ body {
 .tab-button::after {
   content: '';
   position: absolute;
-  left: 14px;
-  right: 14px;
+  left: 12px;
+  right: 12px;
   bottom: -1px;
   height: 2px;
   background: var(--primary);
@@ -106,8 +106,8 @@ body {
 .helper-text {
   font-size: 14px;
   color: var(--text-secondary);
-  line-height: 1.5;
-  margin: 0 0 12px;
+  line-height: 1.4;
+  margin: 0 0 10px;
 }
 
 /* Mode switch buttons */
@@ -449,28 +449,21 @@ textarea.input {
   margin-top: 8px;
 }
 
-/* Dealership Group Mapping: single-company form */
-.single-form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  margin-bottom: 4px;
-}
-
 /* Card stretched to the full width of its container instead of the default
    520px cap - used by the mapping form so it isn't left floating in a narrow
    column on wide screens. */
 .card-fullwidth {
   max-width: none;
   width: 100%;
-  padding: 12px 18px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
 }
 
-/* Visually separates the mode-selector row, research-mode row, and the input
-   fields/submit row from each other with a hairline divider, instead of
-   letting them run together as one dense block. */
+/* Visually separates the mode-selector row from the input fields/submit row
+   with a hairline divider, instead of letting them run together as one
+   dense block. */
 .form-section {
-  padding: 12px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -483,9 +476,38 @@ textarea.input {
   padding-bottom: 2px;
 }
 
-.form-section .mode-tabs,
-.form-section .single-form-grid {
+.form-section .mode-tabs {
   margin-bottom: 0;
+}
+
+/* Row 1 of the compact mapping form: the input-source tabs and the research
+   mode picker share one line, pinned to opposite ends, wrapping naturally
+   on narrow screens instead of stacking into separate rows. */
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+/* Row 2: the four input fields and the submit button share one line,
+   wrapping only when the viewport is too narrow to fit them. */
+.compact-form-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.compact-form-row .input {
+  flex: 1 1 150px;
+  min-width: 130px;
+  width: auto;
+}
+
+.compact-form-row .btn {
+  flex: 0 0 auto;
 }
 
 /* Smaller, denser controls specifically for the compact mapping form -
@@ -493,26 +515,35 @@ textarea.input {
    their normal size. */
 .compact-controls .mode-button,
 .compact-controls .btn {
-  height: 32px;
+  height: 36px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   border-radius: 8px;
 }
 
 .compact-controls input.input,
 .compact-controls .file-input {
-  height: 34px;
-  font-size: 13px;
+  height: 38px;
+  font-size: 14px;
   border-radius: 8px;
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+.compact-controls input.input:focus {
+  background: #fff;
 }
 
 .compact-controls textarea.input {
   height: auto;
-  font-size: 13px;
+  font-size: 14px;
+  border-color: #e5e7eb;
+  background: #f9fafb;
 }
 
 .compact-controls .action-row {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 /* Batch stats bar */
