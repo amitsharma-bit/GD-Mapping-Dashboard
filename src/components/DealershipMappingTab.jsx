@@ -330,12 +330,6 @@ export default function DealershipMappingTab() {
 
   return (
     <div>
-      <p className="helper-text">
-        Research a dealership's current corporate ownership using Claude with real web search, then check it
-        against existing HubSpot Dealership Groups. Nothing is ever written to HubSpot - every result is a
-        recommendation for human review.
-      </p>
-
       <div className="card card-fullwidth compact-controls">
         <div className={`toolbar-row${mode !== 'single' ? ' toolbar-row-divided' : ''}`}>
           <div className="mode-tabs">
