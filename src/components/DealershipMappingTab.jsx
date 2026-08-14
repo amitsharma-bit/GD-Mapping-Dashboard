@@ -243,6 +243,10 @@ export default function DealershipMappingTab() {
     stopRef.current = true;
   }
 
+  function handleClearForm() {
+    setSingleForm({ company_name: '', domain: '', city: '', state: '' });
+  }
+
   const resultList = useMemo(() => Object.values(results), [results]);
   const filteredSorted = useMemo(() => {
     const filtered = resultList.filter((r) => matchesFilter(r, filter) && matchesSearch(r, search));
@@ -333,45 +337,47 @@ export default function DealershipMappingTab() {
       </p>
 
       <div className="card card-fullwidth compact-controls">
-        <div className="form-section">
-          <div className="control-row">
-            <div className="mode-tabs">
-              {[
-                ['single', 'Single company'],
-                ['paste', 'Paste list'],
-                ['file', 'Upload CSV/Excel'],
-              ].map(([value, label]) => (
-                <button key={value} onClick={() => setMode(value)} className={`mode-button${mode === value ? ' active' : ''}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mode-tabs">
-              <span className="detail-fact-label" style={{ alignSelf: 'center', marginRight: 4 }}>
-                Research mode:
-              </span>
-              {[
-                ['quick', 'Quick'],
-                ['standard', 'Standard'],
-                ['deep', 'Deep Research'],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  onClick={() => setResearchMode(value)}
-                  className={`mode-button${researchMode === value ? ' active' : ''}`}
-                  title={value === 'deep' ? 'Exhaustive investigation - slower, may occasionally exceed the serverless timeout.' : ''}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+        <div className={`toolbar-row${mode !== 'single' ? ' toolbar-row-divided' : ''}`}>
+          <div className="mode-tabs">
+            {[
+              ['single', 'Single company'],
+              ['paste', 'Paste list'],
+              ['file', 'Upload CSV/Excel'],
+            ].map(([value, label]) => (
+              <button key={value} onClick={() => setMode(value)} className={`mode-button${mode === value ? ' active' : ''}`}>
+                {label}
+              </button>
+            ))}
           </div>
-        </div>
 
-        <div className="form-section">
+          <div className="mode-tabs">
+            <span className="detail-fact-label" style={{ alignSelf: 'center', marginRight: 4 }}>
+              Research mode:
+            </span>
+            {[
+              ['quick', 'Quick'],
+              ['standard', 'Standard'],
+              ['deep', 'Deep Research'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setResearchMode(value)}
+                className={`mode-button${researchMode === value ? ' active' : ''}`}
+                title={value === 'deep' ? 'Exhaustive investigation - slower, may occasionally exceed the serverless timeout.' : ''}
+              >
+                {label}
+              </button>
+            ))}
+            <span
+              className="info-icon-btn"
+              title="Quick: ~3 searches, fastest. Standard: ~6 searches, balanced (default). Deep Research: ~14 searches, most thorough - may occasionally take longer than usual."
+            >
+              ⓘ
+            </span>
+          </div>
+
           {mode === 'single' && (
-            <div className="compact-form-row">
+            <>
               <input
                 type="text"
                 placeholder="Company Name (optional)"
@@ -381,10 +387,10 @@ export default function DealershipMappingTab() {
               />
               <input
                 type="text"
-                placeholder="Company Domain (e.g. coconutpointford.com)"
+                placeholder="Domain (e.g. coconutpointford.com)"
                 value={singleForm.domain}
                 onChange={(e) => setSingleForm((f) => ({ ...f, domain: e.target.value }))}
-                className="input"
+                className="input input-wide"
               />
               <input
                 type="text"
@@ -401,7 +407,32 @@ export default function DealershipMappingTab() {
                 className="input"
               />
               <button onClick={handleRunSingle} disabled={running} className="btn btn-primary">
-                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research Company'}
+                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research'}
+              </button>
+              <button onClick={handleClearForm} disabled={running} className="btn btn-secondary">
+                Clear
+              </button>
+              {running && (
+                <button onClick={handleStop} className="btn btn-secondary">
+                  Stop
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {mode === 'paste' && (
+          <div className="form-section">
+            <textarea
+              placeholder={'coconutpointford.com\nOR paste CSV/TSV rows with headers: Company Name, Company Domain, City, State'}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={6}
+              className="input"
+            />
+            <div className="action-row">
+              <button onClick={handleRunBatch} disabled={running} className="btn btn-primary">
+                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research List'}
               </button>
               {running && (
                 <button onClick={handleStop} className="btn btn-secondary">
@@ -409,46 +440,24 @@ export default function DealershipMappingTab() {
                 </button>
               )}
             </div>
-          )}
+          </div>
+        )}
 
-          {mode === 'paste' && (
-            <>
-              <textarea
-                placeholder={'coconutpointford.com\nOR paste CSV/TSV rows with headers: Company Name, Company Domain, City, State'}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={6}
-                className="input"
-              />
-              <div className="action-row">
-                <button onClick={handleRunBatch} disabled={running} className="btn btn-primary">
-                  {running ? `Researching… (${progress.done}/${progress.total})` : 'Research List'}
+        {mode === 'file' && (
+          <div className="form-section">
+            <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] || null)} className="file-input" />
+            <div className="action-row">
+              <button onClick={handleRunBatch} disabled={running || !file} className="btn btn-primary">
+                {running ? `Researching… (${progress.done}/${progress.total})` : 'Research File'}
+              </button>
+              {running && (
+                <button onClick={handleStop} className="btn btn-secondary">
+                  Stop
                 </button>
-                {running && (
-                  <button onClick={handleStop} className="btn btn-secondary">
-                    Stop
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          {mode === 'file' && (
-            <>
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] || null)} className="file-input" />
-              <div className="action-row">
-                <button onClick={handleRunBatch} disabled={running || !file} className="btn btn-primary">
-                  {running ? `Researching… (${progress.done}/${progress.total})` : 'Research File'}
-                </button>
-                {running && (
-                  <button onClick={handleStop} className="btn btn-secondary">
-                    Stop
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {stats.total > 0 && (
