@@ -28,14 +28,14 @@ body {
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-  padding: 24px clamp(24px, 2vw, 32px) 48px;
+  padding: 18px clamp(24px, 2vw, 32px) 40px;
 }
 
 .dashboard-title {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin: 0 0 12px;
+  margin: 0 0 6px;
   color: var(--text-primary);
   text-align: left;
 }
@@ -43,19 +43,19 @@ body {
 /* Tabs */
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 16px;
-  margin-left: -14px;
+  margin-bottom: 10px;
+  margin-left: -12px;
 }
 
 .tab-button {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-secondary);
   background: none;
   border: none;
-  padding: 10px 14px;
+  padding: 7px 12px;
   cursor: pointer;
   position: relative;
   transition: color 0.2s ease;
@@ -73,8 +73,8 @@ body {
 .tab-button::after {
   content: '';
   position: absolute;
-  left: 14px;
-  right: 14px;
+  left: 12px;
+  right: 12px;
   bottom: -1px;
   height: 2px;
   background: var(--primary);
@@ -106,8 +106,8 @@ body {
 .helper-text {
   font-size: 14px;
   color: var(--text-secondary);
-  line-height: 1.5;
-  margin: 0 0 12px;
+  line-height: 1.4;
+  margin: 0 0 10px;
 }
 
 /* Mode switch buttons */
@@ -449,43 +449,77 @@ textarea.input {
   margin-top: 8px;
 }
 
-/* Dealership Group Mapping: single-company form */
-.single-form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  margin-bottom: 4px;
-}
-
 /* Card stretched to the full width of its container instead of the default
    520px cap - used by the mapping form so it isn't left floating in a narrow
    column on wide screens. */
 .card-fullwidth {
   max-width: none;
   width: 100%;
-  padding: 12px 18px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
 }
 
-/* Visually separates the mode-selector row, research-mode row, and the input
-   fields/submit row from each other with a hairline divider, instead of
-   letting them run together as one dense block. */
+/* Holds the paste-list textarea / CSV upload input below the toolbar row -
+   the divider above it is `.toolbar-row-divided`, not a border here. */
 .form-section {
-  padding: 12px 0;
+  padding: 10px 0 2px;
+}
+
+/* The mapping form's whole toolbar - source-mode tabs, research-mode picker,
+   and (in single-company mode) the four input fields plus Research/Clear -
+   all share ONE flex line, wrapping only when the viewport can't fit them. */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.toolbar-row .mode-tabs {
+  margin-bottom: 0;
+}
+
+/* Applied only when a second section (the paste/upload textarea or file
+   input) follows below - single-company mode has nothing below the toolbar,
+   so it gets no divider. */
+.toolbar-row-divided {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
   border-bottom: 1px solid var(--border);
 }
 
-.form-section:first-child {
-  padding-top: 2px;
+.toolbar-row .input {
+  flex: 1 1 110px;
+  min-width: 90px;
+  max-width: 220px;
+  width: auto;
 }
 
-.form-section:last-child {
-  border-bottom: none;
-  padding-bottom: 2px;
+/* Domain values run longer than name/city/state, so it gets more room. */
+.toolbar-row .input.input-wide {
+  flex: 1.6 1 150px;
+  max-width: 320px;
 }
 
-.form-section .mode-tabs,
-.form-section .single-form-grid {
-  margin-bottom: 0;
+.toolbar-row .btn {
+  flex: 0 0 auto;
+}
+
+/* Small "i" badge conveying what each research mode means, without adding
+   any new interactive behavior - a native title tooltip is enough. */
+.info-icon-btn {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-secondary);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
 }
 
 /* Smaller, denser controls specifically for the compact mapping form -
@@ -493,9 +527,10 @@ textarea.input {
    their normal size. */
 .compact-controls .mode-button,
 .compact-controls .btn {
-  height: 32px;
-  padding: 0 14px;
+  height: 34px;
+  padding: 0 12px;
   font-size: 13px;
+  font-weight: 500;
   border-radius: 8px;
 }
 
@@ -504,15 +539,23 @@ textarea.input {
   height: 34px;
   font-size: 13px;
   border-radius: 8px;
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+.compact-controls input.input:focus {
+  background: #fff;
 }
 
 .compact-controls textarea.input {
   height: auto;
-  font-size: 13px;
+  font-size: 14px;
+  border-color: #e5e7eb;
+  background: #f9fafb;
 }
 
 .compact-controls .action-row {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 /* Batch stats bar */
